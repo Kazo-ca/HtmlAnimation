@@ -38,6 +38,9 @@ Playwright owns port 43128 during tests; stop the preview before running it.
 The initial scenario shows the four `.button` elements at 50% opacity and `#button-2`
 at 80%, including before its sole key at frame 50. Navigate the recorded frame choices,
 select the group or individual object, and try the incompatible group margin.
+The tree starts with no selection and always displays the actual DOM hierarchy.
+Click a tag/ID to inspect only that node; click a separate class button to explicitly
+select all members of that class. A node click never promotes itself to a class group.
 Use **Scène sans clés**, select a button, edit **Opacité**, then explicitly choose an ID
 or class and save. **Annuler/Rétablir** restores the key, object and preview together.
 In that fresh scene, **Nouvel identifiant** and **Classes du document** demonstrate the

@@ -11,6 +11,7 @@ Timeline contract are preserved unchanged.
 
 1. Keep node selection exact and separate from explicit animation targeting.
    Inspect the effective preview for that node; do not create an object, key or ID.
+   Only an existing ID object resolving to that single node is associated automatically.
    First edits without an individual target keep the existing explicit target picker.
 2. Display the actual DOM hierarchy. Tag/ID selects the node; each separate class
    button selects all members of that literal class within the inspected root.
@@ -23,6 +24,22 @@ class action adds optional `{ kind: 'class', className }` context; ordinary node
 callbacks still receive exactly one argument. The Designer uses that context to
 choose a class target explicitly. Literal class names outside its supported target
 syntax remain inspectable without silently creating an unsupported animation target.
+In particular a literal class `a.b` is not the compound target `.a.b` (classes `a`
+and `b`). A tree class action accepts only one supported class token as an animation
+target; compound selectors remain available through the explicit target picker.
+
+## TDD evidence
+
+The ECC planner and TDD guide established the journeys above. Checkpoint `e04b81d`
+preserves the tests before production changes: `npm test -- tests/node-selection.test.ts`
+ran five cases with four business failures and one exact-ID success;
+`npm test -- tests/tree-class-selection.test.ts` ran five failing missing-action cases.
+The same targets pass after the correction, including first-edit ID creation and undo.
+
+Security review additionally reproduced the literal `a.b`/compound `.a.b` confusion.
+Its new integration regression failed with the wrong node selected, then passed after
+restricting the class-action target to specificity 1. The general, TypeScript and
+security review results and final check counts are recorded in the PR body.
 
 ## Validation scope
 

@@ -2,6 +2,7 @@
 import { CssPropertiesPanel } from '@kazo-ca/css-properties';
 import type { CssProperty } from '@kazo-ca/css-properties';
 import { HierarchicalDomTree } from '@kazo-ca/hierarchical-dom-tree';
+import type { TreeSelectionContext } from '@kazo-ca/hierarchical-dom-tree';
 import { DomOrigin } from './dom-origin.js';
 import { DesignerEmitter } from './events.js';
 import type { DesignerEvents, DocumentChange } from './events.js';
@@ -72,7 +73,7 @@ export class HtmlDesigner<T = unknown> {
     });
     this.panel = new CssPropertiesPanel(this.ui.panelContainer, { commonProperties: true });
     this.tree = new HierarchicalDomTree(options.treeContainer, { root: this.scene });
-    this.subscriptions.push(this.panel.onChange(change => this.requestEdit(change.property, change.newValue)), this.tree.onSelectionChange(elements => this.selectElements(elements)), this.adapter.onChange(reason => this.timelineChanged(reason)));
+    this.subscriptions.push(this.panel.onChange(change => this.requestEdit(change.property, change.newValue)), this.tree.onSelectionChange((elements, context) => this.selectTreeElements(elements, context)), this.adapter.onChange(reason => this.timelineChanged(reason)));
     this.geometryControls = new GeometryControls(this.ui.root, { scene: this.scene, read: () => this.geometryView(), setTool: tool => this.setGeometryTool(tool), begin: tool => this.beginGeometryGesture(tool), update: (delta, settings) => this.updateGeometryGesture(delta, settings), commit: () => this.commitGeometryGesture(), cancel: () => this.cancelGeometryGesture(), setOptions: settings => this.setGeometryOptions(settings), setPivot: (x, y) => this.setGeometryPivot(x, y) });
     this.scene.ownerDocument.addEventListener('keydown', event => { if (event.key === 'Escape' && this.gesture) { event.preventDefault(); this.cancelGeometryGesture(); } }, { signal: this.abort.signal });
     this.scene.addEventListener('click', event => {
@@ -87,15 +88,21 @@ export class HtmlDesigner<T = unknown> {
   public on<K extends keyof DesignerEvents>(type: K, listener: (event: DesignerEvents[K]) => void): () => void { return this.emitter.on(type, listener); }
   public getDocumentChanges(): readonly DocumentChange[] { return this.changes.map(change => ({ ...change })); }
   public setMode(mode: 'select' | 'test'): void { this.cancelGeometryGesture(); this.mode = mode; this.highlight(); }
+  private selectTreeElements(elements: readonly HTMLElement[], context?: TreeSelectionContext): void {
+    const selector = context?.kind === 'class' ? `.${context.className}` : null;
+    if (selector && specificity(selector) === 1) { this.selectTarget(selector); return; }
+    this.selectElements(elements);
+    if (selector) this.report('Classe sélectionnée pour inspection. Son nom nécessite un échappement CSS non pris en charge pour l’animation.');
+  }
   public selectElements(elements: readonly HTMLElement[]): void {
     if (this.disposed) return;
     this.cancelGeometryGesture();
-    this.elements = elements.filter(element => this.origin.has(element) && this.scene.contains(element));
+    this.elements = [...new Set(elements)].filter(element => this.origin.has(element) && this.scene.contains(element));
     this.target = null; this.pending = null; this.ui.hideTargets();
     const element = this.elements[0];
     const matches = element ? this.adapter.getState().objects.filter(object => resolveTarget(this.scene, object.selector).includes(element)) : [];
-    const associated = matches.find(object => element?.id && object.selector === `#${element.id}`) ?? (matches.length === 1 ? matches[0] : undefined);
-    if (associated) { this.target = associated.selector; this.elements = resolveTarget(this.scene, associated.selector); }
+    const associated = this.elements.length === 1 ? matches.find(object => element?.id && object.selector === `#${element.id}` && resolveTarget(this.scene, object.selector).length === 1) : undefined;
+    if (associated) this.target = associated.selector;
     this.syncing = true; this.adapter.selectObject(associated?.id ?? null); this.syncing = false;
     if (matches.length > 1 && !associated) this.report('Plusieurs objets correspondent. Choisissez une cible explicitement.');
     this.render(); this.emitter.emit('selectionchange', { elements: this.elements, objectId: associated?.id ?? null });

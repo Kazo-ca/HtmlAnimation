@@ -36,7 +36,6 @@ function mount(reference: boolean, geometry: 'none' | 'plain' | 'expression' = '
   };
   unsubscribe = timeline.onChange(update); update();
   selectMode.setAttribute('aria-pressed', 'true'); testMode.setAttribute('aria-pressed', 'false');
-  if (reference) designer.selectTarget('.button');
   if (geometry !== 'none') designer.selectTarget('#geometry-box');
   log.textContent = geometry !== 'none' ? 'Atelier géométrique · cible #geometry-box fournie par l’hôte · aucune clé avant validation du geste.' : reference ? 'Cas de référence chargé · groupe 50 %, bouton 2 à 80 % dès l’image 1.' : 'Scène sans clés · sélectionnez un élément, modifiez une propriété puis choisissez sa cible.';
 }

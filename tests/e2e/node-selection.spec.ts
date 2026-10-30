@@ -52,3 +52,15 @@ test('an individual edit from structure leaves sibling samples intact and undo r
   await expect(page.locator('#scene-host #button-2')).toHaveCSS('opacity', '0.8'); await expect(page.locator('#key-count')).toHaveText('2 clés · simulation');
   await expect(page.locator('#tree [aria-selected="true"]')).toHaveCount(1);
 });
+
+for (const width of [320, 1440]) test(`node and class selections fit a ${width}px workbench`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 960 }); await page.emulateMedia({ reducedMotion: 'reduce' }); await page.goto('/');
+  await buttonNode(page).locator(':scope > .tree-row .tree-label').click();
+  await expect(page.locator('#tree [aria-selected="true"]')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath(`node-selection-${width}.png`), fullPage: true, animations: 'disabled' });
+  await classAction(page).click(); await expect(page.locator('#tree [aria-selected="true"]')).toHaveCount(4);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath(`class-selection-${width}.png`), fullPage: true, animations: 'disabled' });
+  await expect(page.locator('#key-count')).toHaveText('2 clés · simulation'); await expect(page.locator('#undo')).toBeDisabled();
+});

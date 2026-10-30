@@ -7,8 +7,9 @@ import { createSceneFixture, propertyInput } from './helpers.js';
 const designers: HtmlDesigner[] = [];
 afterEach(() => { for (const designer of designers.splice(0)) designer.dispose(); document.body.replaceChildren(); });
 
-function setup(): ReturnType<typeof createSceneFixture> & { readonly designer: HtmlDesigner; readonly timeline: ReturnType<typeof createRecordedTimeline> } {
+function setup(configure?: (fixture: ReturnType<typeof createSceneFixture>) => void): ReturnType<typeof createSceneFixture> & { readonly designer: HtmlDesigner; readonly timeline: ReturnType<typeof createRecordedTimeline> } {
   const fixture = createSceneFixture(); const timeline = createRecordedTimeline({ reference: true });
+  configure?.(fixture);
   const designer = new HtmlDesigner({ ...fixture, timeline, adapter: instance => instance }); designers.push(designer);
   return { ...fixture, timeline, designer };
 }
@@ -24,6 +25,26 @@ function classAction(row: HTMLElement): HTMLButtonElement {
 }
 
 describe('individual DOM inspection with a recorded Timeline simulation', () => {
+  it('preserves an explicit element set instead of replacing it with the first individual object', () => {
+    const { designer, timeline, buttons, treeContainer } = setup(); const selected = vi.fn(); designer.on('selectionchange', selected);
+    designer.selectElements([buttons[1], buttons[0], buttons[1]]);
+    expect(selected).toHaveBeenLastCalledWith({ elements: [buttons[1], buttons[0]], objectId: null });
+    expect(treeContainer.querySelectorAll('[aria-selected="true"]')).toHaveLength(2);
+    expect(timeline.getKeys()).toHaveLength(2); expect(timeline.getState().canUndo).toBe(false);
+  });
+
+  for (const className of ['a:b.c', 'a.b']) it(`inspects the literal class ${className} without confusing it with a compound target`, () => {
+    const { designer, timeline, buttons, treeContainer, propertiesContainer } = setup(({ buttons }) => { buttons[0].classList.add(className); buttons[2].classList.add(className); buttons[1].classList.add('a', 'b'); });
+    const selected = vi.fn(); designer.on('selectionchange', selected); const keys = timeline.getKeys();
+    const action = treeContainer.querySelector<HTMLButtonElement>(`button[aria-label="Sélectionner tous les éléments de la classe .${className}"]`);
+    if (!action) throw new Error('Missing literal class action.'); action.click();
+    expect(selected).toHaveBeenLastCalledWith({ elements: [buttons[0], buttons[2]], objectId: null });
+    expect(treeContainer.querySelectorAll('[aria-selected="true"]')).toHaveLength(2);
+    expect(propertiesContainer.querySelector('.designer-status')?.textContent).toContain('échappement CSS');
+    expect(designer.editProperty('opacity', '0.2').status).toBe('rejected');
+    expect(timeline.getKeys()).toEqual(keys); expect(timeline.getState().canUndo).toBe(false);
+  });
+
   it('keeps a node selected alone when its only matching object is a shared class', () => {
     const { designer, timeline, buttons, treeContainer, propertiesContainer } = setup();
     const selected = vi.fn(); designer.on('selectionchange', selected); const keys = timeline.getKeys();
