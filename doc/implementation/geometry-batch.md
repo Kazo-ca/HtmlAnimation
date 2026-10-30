@@ -16,8 +16,9 @@ port43127, separate from Playwright's reserved43128.
 - Preview-only gestures: no objects, keys, user property events or original-document
   change events until commit. Selection/frame/Test-mode changes and disposal cancel.
 - Host scroll positions survive the temporary base-style reads during rendering;
-  handles are recalculated after restoration. A real scrollable-container regression
-  verifies pointer alignment, commit and undo in all three browsers.
+  restoration is instant even with CSS smooth scrolling, then handles are recalculated.
+  Real scrollable-container regressions measure the same pointer event and verify
+  pointer alignment, commit and undo in all three browsers.
 - Independent width/height and scaleX/scaleY writes. `rotation` is an additional spatial
   channel; the native CSS `rotate` property keeps its free-text semantics.
 - Nine pivot presets and a movable pivot with translation compensation, including

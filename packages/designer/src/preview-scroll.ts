@@ -12,8 +12,10 @@ export function capturePreviewScroll(roots: readonly HTMLElement[]): () => boole
   return () => {
     let changed = false;
     for (const [element, position] of positions) {
-      if (element.scrollLeft !== position.left) { element.scrollLeft = position.left; changed = true; }
-      if (element.scrollTop !== position.top) { element.scrollTop = position.top; changed = true; }
+      if (element.scrollLeft === position.left && element.scrollTop === position.top) continue;
+      if (typeof element.scrollTo === 'function') element.scrollTo({ left: position.left, top: position.top, behavior: 'instant' });
+      else { element.scrollLeft = position.left; element.scrollTop = position.top; }
+      changed = true;
     }
     return changed;
   };
