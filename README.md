@@ -1,0 +1,79 @@
+<!-- README.md -->
+# HtmlAnimation
+
+An HTML design workspace built as three independently packageable TypeScript libraries.
+The interface is in French. Requires Node.js 24+ and npm 11+.
+
+| Package | Role | Runtime dependencies |
+| --- | --- | --- |
+| `@kazo-ca/css-properties` | Controlled CSS property editor with free-text fallback | None |
+| `@kazo-ca/hierarchical-dom-tree` | Keyboard-accessible DOM hierarchy and controlled selection | None |
+| `@kazo-ca/html-designer` | Coordinates an existing HTML scene, both controls and an injected Timeline adapter | The two controls |
+
+The first functional batch provides inspection, synchronized selection, selection/test modes,
+explicit first-edit targeting, property edits, shared undo/redo, original ID/class change tracking
+with Full XPath, and temporary style preview. **No real JsAnimationTimeline version is integrated.**
+The shipped demo uses recorded samples and a deliberately limited test fixture.
+
+```sh
+npm ci --ignore-scripts
+npm run build
+npm run build:demo
+npm exec playwright install chromium firefox webkit
+npm run lint
+npm run typecheck
+npm run test:coverage
+npm run check:packages
+CI=1 npm run test:e2e
+npm run dev
+```
+
+PowerShell: use `$env:CI='1'; npm run test:e2e` for the browser check.
+Development demo: <http://127.0.0.1:43127>. Production preview: `npm run preview`,
+<http://127.0.0.1:43128>. Both bind to loopback and fail if the port is occupied.
+Playwright owns port 43128 during tests; stop the preview before running it.
+
+The initial scenario shows the four `.button` elements at 50% opacity and `#button-2`
+at 80%, including before its sole key at frame 50. Navigate the recorded frame choices,
+select the group or individual object, and try the incompatible group margin.
+Use **Scène sans clés**, select a button, edit **Opacité**, then explicitly choose an ID
+or class and save. **Annuler/Rétablir** restores the key, object and preview together.
+In that fresh scene, **Nouvel identifiant** and **Classes du document** demonstrate the
+persistent change journal and its original Full XPath. Scene samples are in `fixtures/`
+and reused by the automated tests.
+
+## Consumer API
+
+```ts
+import { HtmlDesigner } from '@kazo-ca/html-designer';
+import '@kazo-ca/css-properties/style.css';
+import '@kazo-ca/hierarchical-dom-tree/style.css';
+import '@kazo-ca/html-designer/style.css';
+
+const designer = new HtmlDesigner({
+  scene: existingHtmlContainer,
+  propertiesContainer,
+  treeContainer,
+  timeline: hostTimelineInstance,
+  adapter: instance => createHostAdapter(instance),
+});
+designer.on('documentchange', ({ changes, direction }) => {
+  // Each change retains the ORIGINAL Full XPath and old/new ID or class.
+  // On undo, reapply oldValue; on execute/redo, reapply newValue.
+  hostPersistOriginalAttributes(changes, direction);
+});
+designer.on('propertychange', ({ property, oldValue, newValue, frame }) => {
+  hostObserveAcceptedEdit({ property, oldValue, newValue, frame });
+});
+// Later: designer.dispose(); the host still owns its Timeline instance.
+```
+
+`createHostAdapter` is application-provided; its local proposed interface is documented
+in [HA-ADAPTER-001/r1](doc/implementation/adapter-contract.md). It is **not** an existing
+JsAnimationTimeline API. No fake is exported from the three libraries. Build outputs
+include ESM, declarations, CSS and the existing GPL-2.0 license. Package names are
+provisional; nothing has been published.
+
+Read [the production plan](doc/implementation/plan.md),
+[API gaps and batch status](doc/implementation/status.md), and the unchanged
+[product handoff](doc/integration/README.md) before extending the implementation.

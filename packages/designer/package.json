@@ -1,0 +1,32 @@
+{
+  "name": "@kazo-ca/html-designer",
+  "version": "0.1.0",
+  "description": "HTML design coordination with an injected Timeline adapter",
+  "type": "module",
+  "license": "GPL-2.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kazo-ca/HtmlAnimation.git",
+    "directory": "packages/designer"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "sideEffects": [
+    "./src/index.ts",
+    "**/*.css",
+    "**/*.less"
+  ],
+  "dependencies": {
+    "@kazo-ca/css-properties": "0.1.0",
+    "@kazo-ca/hierarchical-dom-tree": "0.1.0"
+  }
+}
