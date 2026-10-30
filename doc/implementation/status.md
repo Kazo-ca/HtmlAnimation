@@ -27,7 +27,7 @@ resolution support. No selection-dependent animation priority is saved or inferr
 | `npm ci --offline --ignore-scripts --cache .npm-cache --no-audit --no-fund` | Passed from lockfile and local cache; initial install fetched pinned packages. |
 | `npm run lint` | Passed, zero warnings. Explicit `any` prohibited. |
 | `npm run typecheck` | Passed, strict TS, no unchecked indexed access. |
-| `npm run test:coverage` | 44 passed; 98.60% statements, 90.75% branches, 99.30% functions, 99.79% lines. |
+| `npm run test:coverage` | 45 passed; 98.60% statements, 90.68% branches, 99.30% functions, 99.79% lines. |
 | `npm run build` | Three independent package builds and declarations passed. |
 | `npm run build:demo` | Production demo passed. |
 | `npm run check:packages` | Three actual archives packed, installed offline into separate consumer, typechecked and bundled. No simulation leaked into archives. |
@@ -54,6 +54,9 @@ TypeScript and security reviewers after implementation. General and TypeScript f
 were reproduced with regression tests and corrected, then the reviewers approved their
 focused re-reviews with no open findings. Security review has no open finding.
 CI YAML was reviewed, but hosted execution is a separate result visible on the PR.
+The initial hosted run passed all package/unit/build checks and Chromium/Firefox;
+WebKit could not launch because npm consumed the installation flag. The workflow
+now uses `npm exec -- playwright install --with-deps ...` to forward it correctly.
 No C# scope exists. Real Timeline, deferred capabilities and a production deployment
 have not been reviewed or tested. UI design evidence is in `artifacts/evidence/`.
 

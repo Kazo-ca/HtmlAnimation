@@ -74,3 +74,17 @@ it('can create a group property when the first member already has an ID override
   expect(fixture.buttons[2].style.opacity).toBe('0.8');
   designer.undo(); expect(fixture.buttons[2].style.opacity).toBe('1');
 });
+it('does not reject lower equal-specificity values when an ID resolves their entire overlap', () => {
+  const fixture = createSceneFixture(); fixture.buttons[0].classList.add('primary');
+  const timeline = createRecordedTimeline();
+  timeline.execute('Seed resolved overlap', [
+    { objectId: 'group', selector: '.button', property: 'opacity', value: '0.5', frame: 1 },
+    { objectId: 'other', selector: '.primary', property: 'opacity', value: '0.4', frame: 1 },
+    { objectId: 'specific', selector: '#button-1', property: 'opacity', value: '0.6', frame: 1 },
+  ]);
+  designer = new HtmlDesigner({ ...fixture, timeline, adapter: instance => instance });
+  designer.selectTarget('.button');
+  expect(designer.editProperty('opacity', '0.8').status).toBe('changed');
+  expect(fixture.buttons[0].style.opacity).toBe('0.6'); expect(fixture.buttons[2].style.opacity).toBe('0.8');
+  designer.undo(); expect(fixture.buttons[2].style.opacity).toBe('0.5');
+});

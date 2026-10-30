@@ -127,7 +127,11 @@ export class HtmlDesigner<T = unknown> {
     const objectId = object?.id ?? `html:${this.target}`;
     const oldValue = this.displayValue(property);
     if (oldValue === newValue) return { status: 'unchanged' };
-    const conflict = state.objects.find(candidate => candidate.id !== objectId && specificity(candidate.selector) === specificity(this.target ?? '') && resolveTarget(this.scene, candidate.selector).some(element => this.elements.includes(element)) && state.values[candidate.id]?.[property] !== undefined && state.values[candidate.id]?.[property] !== newValue);
+    const rank = specificity(this.target) ?? 0;
+    const conflict = state.objects.find(candidate => {
+      if (candidate.id === objectId || specificity(candidate.selector) !== rank || state.values[candidate.id]?.[property] === undefined || state.values[candidate.id]?.[property] === newValue) return false;
+      return resolveTarget(this.scene, candidate.selector).some(element => this.elements.includes(element) && !state.objects.some(higher => (specificity(higher.selector) ?? 0) > rank && state.values[higher.id]?.[property] !== undefined && resolveTarget(this.scene, higher.selector).includes(element)));
+    });
     if (conflict) return this.reject(`Conflit non résolu : ${conflict.selector} et ${this.target}, ${property}, image ${state.frame}. Une résolution explicite est nécessaire.`);
     const result = this.adapter.execute(`Change ${property}`, [{ objectId, selector: this.target, property, value: newValue, frame: state.frame }]);
     if (result.status === 'changed') this.emitter.emit('propertychange', { property, oldValue, newValue, frame: state.frame });
