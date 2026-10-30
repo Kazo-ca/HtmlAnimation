@@ -1,5 +1,6 @@
 // packages/designer/src/dom-origin.ts
-interface Origin { readonly values: ReadonlyMap<string, string>; readonly xpath: string }
+import { authoredStyles } from './authored-styles.js';
+interface Origin { readonly values: ReadonlyMap<string, string>; readonly authored: ReadonlyMap<string, string>; readonly xpath: string }
 interface Preview { readonly original: string | null; current: string | null; readonly properties: Map<string, { readonly value: string; readonly priority: string; readonly preview: string }> }
 
 export function fullXPath(element: Element): string {
@@ -22,16 +23,18 @@ export class DomOrigin {
       if (computed) for (let index = 0; index < computed.length; index++) {
         const name = computed.item(index); values.set(name, computed.getPropertyValue(name));
       }
-      this.origins.set(element, { values, xpath: fullXPath(element) });
+      const authored = authoredStyles(element);
+      this.origins.set(element, { values, authored, xpath: fullXPath(element) });
     }
   }
   public has(element: HTMLElement): boolean { return this.origins.has(element); }
   public value(element: HTMLElement, property: string): string { return this.origins.get(element)?.values.get(property) ?? ''; }
+  public authoredValue(element: HTMLElement, property: string): string { return this.origins.get(element)?.authored.get(property) ?? ''; }
   public properties(element: HTMLElement): readonly string[] { return [...(this.origins.get(element)?.values.keys() ?? [])]; }
   public xpath(element: HTMLElement): string { return this.origins.get(element)?.xpath ?? ''; }
   public applyPreview(element: HTMLElement, property: string, value: string): void {
     const preview = this.previews.get(element) ?? { original: element.getAttribute('style'), current: null, properties: new Map() };
-    const original = { value: element.style.getPropertyValue(property), priority: element.style.getPropertyPriority(property), preview: value };
+    const original = preview.properties.get(property) ?? { value: element.style.getPropertyValue(property), priority: element.style.getPropertyPriority(property), preview: value };
     element.style.setProperty(property, value, 'important');
     preview.properties.set(property, { ...original, preview: element.style.getPropertyValue(property) });
     preview.current = element.getAttribute('style'); this.previews.set(element, preview);

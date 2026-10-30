@@ -1,6 +1,9 @@
 <!-- doc/implementation/status.md -->
 # Batch 1 status and Timeline API requests
 
+Historical batch 1 record. See `geometry-batch.md` for the current batch 2 behavior,
+HA-TL-001/r2 references, validation scope and remaining API gaps.
+
 2026-10-30. Branch: `codex/designer-foundation`. Consumed documents:
 HA-DESIGN-001/r1, HA-TL-001/r1. Original handoff content is preserved byte-for-byte.
 This branch contains the first functional batch, not the entire product scope.
@@ -63,7 +66,7 @@ have not been reviewed or tested. UI design evidence is in `artifacts/evidence/`
 ## Requests for the Timeline workstream
 
 This list records needs, not changes to HA-TL-001. The local proposal is versioned as
-HA-ADAPTER-001/r1 in `adapter-contract.md`. An agreed shared change needs a separate
+HA-ADAPTER-001/r1 in `adapter-contract-r1.md`. An agreed shared change needs a separate
 revision and explicit synchronization; no API is silently assumed to exist.
 
 | Need / gap | Required integration evidence |

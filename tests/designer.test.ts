@@ -450,7 +450,7 @@ describe('HtmlDesigner integration with a scripted simulation, not a real Timeli
   it('rejects incompatible adapter revisions before taking ownership of the scene', () => {
     const fixture = createSceneFixture();
     const timeline = createRecordedTimeline();
-    const incompatible: unknown = { ...timeline, contractRevision: 'HA-TL-001/r2' };
+    const incompatible: unknown = { ...timeline, contractRevision: 'HA-TL-001/unknown' };
     expect(() => new HtmlDesigner({ ...fixture, timeline, adapter: () => incompatible as RecordedTimeline })).toThrow('Révision de contrat Timeline incompatible.');
     expect(fixture.propertiesContainer.children).toHaveLength(0);
     expect(fixture.treeContainer.children).toHaveLength(0);

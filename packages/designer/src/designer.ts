@@ -8,6 +8,20 @@ import type { DesignerEvents, DocumentChange } from './events.js';
 import { InspectorUi } from './inspector-ui.js';
 import { resolveTarget, specificity, targetChoices } from './targets.js';
 import type { MutationResult, TimelineAdapter, TimelineReason } from './timeline-adapter.js';
+import { geometryContext, geometryDefaults, geometryProperties, geometryStateKey, geometryValues, isGeometryProperty, pivotCoordinates, projectGeometry, unresolvedPercentageHeight, validGeometryValue } from './geometry-dom.js';
+import { geometryLengthPixels, snapPosition, updateGeometry } from './geometry-math.js';
+import type { GeometryGuide, GeometryMetrics, GeometryState, GeometryTool, Point } from './geometry-math.js';
+import { GeometryControls } from './geometry-controls.js';
+import { capturePreviewScroll } from './preview-scroll.js';
+import type { GeometryOptions, GeometryUpdateResult, GeometryView } from './geometry-controls.js';
+
+export interface PropertyEdit { readonly property: string; readonly newValue: string; readonly capture?: boolean }
+interface GeometryGesture {
+  readonly element: HTMLElement; readonly selector: string; readonly frame: number; readonly tool: GeometryTool;
+  readonly state: GeometryState; readonly metrics: GeometryMetrics; readonly rect: DOMRect; readonly parentRect: DOMRect;
+  values: Readonly<Partial<GeometryState>>; guides: readonly GeometryGuide[]; confirmation: boolean;
+  readonly unknownTransform: string | null; convertedTransform: string | null;
+}
 
 export interface DesignerOptions<T> {
   readonly scene: HTMLElement;
@@ -17,7 +31,7 @@ export interface DesignerOptions<T> {
   readonly adapter: (timeline: T) => TimelineAdapter;
 }
 const commonProperties = ['opacity', 'width', 'height', 'position', 'left', 'top', 'transform', 'margin-top', 'padding', 'color', 'background-color', 'background-image', 'border-radius', 'font-size'];
-const labels: Readonly<Record<string, string>> = { opacity: 'Opacité', width: 'Largeur', height: 'Hauteur', 'margin-top': 'Marge supérieure', 'background-color': 'Couleur de fond', color: 'Couleur', transform: 'Transformation' };
+const labels: Readonly<Record<string, string>> = { opacity: 'Opacité', width: 'Largeur', height: 'Hauteur', 'margin-top': 'Marge supérieure', 'background-color': 'Couleur de fond', color: 'Couleur', transform: 'Transformation', translateX: 'Déplacement X', translateY: 'Déplacement Y', rotation: 'Rotation', rotate: 'Rotation CSS', scaleX: 'Échelle X', scaleY: 'Échelle Y', pivotX: 'Pivot X', pivotY: 'Pivot Y' };
 
 export class HtmlDesigner<T = unknown> {
   private readonly scene: HTMLElement;
@@ -26,6 +40,7 @@ export class HtmlDesigner<T = unknown> {
   private readonly panel: CssPropertiesPanel;
   private readonly tree: HierarchicalDomTree;
   private readonly ui: InspectorUi;
+  private readonly scrollRoots: readonly HTMLElement[];
   private readonly emitter = new DesignerEmitter();
   private readonly abort = new AbortController();
   private readonly subscriptions: (() => void)[] = [];
@@ -38,19 +53,28 @@ export class HtmlDesigner<T = unknown> {
   private mode: 'select' | 'test' = 'select';
   private pending: { readonly property: string; readonly value: string } | null = null;
   private pendingDocumentChange: DesignerEvents['documentchange'] | null = null;
+  private geometryControls: GeometryControls | undefined;
+  private gesture: GeometryGesture | null = null;
+  private geometryTool: GeometryTool = 'move';
+  private geometryOptions: GeometryOptions = { grid: false, snap: false, guides: true, gridSize: 10 };
+  private pendingGeometryTarget = false;
+  private projectedValues = new Map<HTMLElement, Readonly<Record<string, string>>>();
 
   public constructor(options: DesignerOptions<T>) {
     this.scene = options.scene; this.adapter = options.adapter(options.timeline);
-    if (this.adapter.contractRevision !== 'HA-TL-001/r1') throw new Error('Révision de contrat Timeline incompatible.');
+    this.scrollRoots = [options.scene, options.propertiesContainer, options.treeContainer];
+    if (!['HA-TL-001/r1', 'HA-TL-001/r2'].includes(this.adapter.contractRevision)) throw new Error('Révision de contrat Timeline incompatible.');
     this.origin = new DomOrigin(this.scene);
     this.ui = new InspectorUi(options.propertiesContainer, {
       chooseTarget: selector => this.commitTarget(selector),
-      cancelTarget: () => { this.pending = null; this.ui.hideTargets(); this.refreshPanel(); },
+      cancelTarget: () => { this.pending = null; this.pendingGeometryTarget = false; this.ui.hideTargets(); this.refreshPanel(); },
       changeAttribute: (attribute, value) => { const element = this.elements[0]; if (element) this.setAttribute(element, attribute, value || null); },
     });
     this.panel = new CssPropertiesPanel(this.ui.panelContainer, { commonProperties: true });
     this.tree = new HierarchicalDomTree(options.treeContainer, { root: this.scene });
     this.subscriptions.push(this.panel.onChange(change => this.requestEdit(change.property, change.newValue)), this.tree.onSelectionChange(elements => this.selectElements(elements)), this.adapter.onChange(reason => this.timelineChanged(reason)));
+    this.geometryControls = new GeometryControls(this.ui.root, { scene: this.scene, read: () => this.geometryView(), setTool: tool => this.setGeometryTool(tool), begin: tool => this.beginGeometryGesture(tool), update: (delta, settings) => this.updateGeometryGesture(delta, settings), commit: () => this.commitGeometryGesture(), cancel: () => this.cancelGeometryGesture(), setOptions: settings => this.setGeometryOptions(settings), setPivot: (x, y) => this.setGeometryPivot(x, y) });
+    this.scene.ownerDocument.addEventListener('keydown', event => { if (event.key === 'Escape' && this.gesture) { event.preventDefault(); this.cancelGeometryGesture(); } }, { signal: this.abort.signal });
     this.scene.addEventListener('click', event => {
       if (this.mode === 'test') return;
       event.preventDefault(); event.stopPropagation();
@@ -62,9 +86,10 @@ export class HtmlDesigner<T = unknown> {
   }
   public on<K extends keyof DesignerEvents>(type: K, listener: (event: DesignerEvents[K]) => void): () => void { return this.emitter.on(type, listener); }
   public getDocumentChanges(): readonly DocumentChange[] { return this.changes.map(change => ({ ...change })); }
-  public setMode(mode: 'select' | 'test'): void { this.mode = mode; this.highlight(); }
+  public setMode(mode: 'select' | 'test'): void { this.cancelGeometryGesture(); this.mode = mode; this.highlight(); }
   public selectElements(elements: readonly HTMLElement[]): void {
     if (this.disposed) return;
+    this.cancelGeometryGesture();
     this.elements = elements.filter(element => this.origin.has(element) && this.scene.contains(element));
     this.target = null; this.pending = null; this.ui.hideTargets();
     const element = this.elements[0];
@@ -77,6 +102,7 @@ export class HtmlDesigner<T = unknown> {
   }
   public selectTarget(selector: string): void {
     if (this.disposed) return;
+    this.cancelGeometryGesture();
     const elements = resolveTarget(this.scene, selector);
     if (!elements.length) { this.report('Cible introuvable ou sélecteur non pris en charge : utilisez un ID ou des classes combinées.'); return; }
     this.pending = null; this.ui.hideTargets();
@@ -87,6 +113,7 @@ export class HtmlDesigner<T = unknown> {
   }
   private timelineChanged(reason: TimelineReason): void {
     if (this.syncing || this.disposed) return;
+    if (this.gesture) { this.gesture = null; }
     if (reason === 'selection') {
       this.pending = null; this.ui.hideTargets();
       const state = this.adapter.getState(); const object = state.objects.find(object => object.id === state.selectedObjectId);
@@ -109,36 +136,51 @@ export class HtmlDesigner<T = unknown> {
   }
   private commitTarget(selector: string): void {
     const pending = this.pending;
-    if (!pending) return;
+    if (!pending && !this.pendingGeometryTarget) return;
     const elements = resolveTarget(this.scene, selector);
     if (!elements.length || !this.elements.every(element => elements.includes(element))) { this.report('La cible doit contenir les éléments inspectés.'); return; }
     this.selectTarget(selector);
+    if (!pending) { this.pendingGeometryTarget = false; this.ui.hideTargets(); this.report('Cible choisie. Vous pouvez maintenant manipuler ses poignées.'); return; }
     const result = this.editProperty(pending.property, pending.value);
     if (result.status !== 'rejected') { this.pending = null; this.ui.hideTargets(); }
   }
   public editProperty(property: string, newValue: string): MutationResult {
+    return this.editProperties([{ property, newValue }], `Change ${property}`);
+  }
+  public editProperties(changes: readonly PropertyEdit[], label = 'Change properties'): MutationResult {
     if (this.disposed) return this.reject('Le Designer est fermé.');
+    if (this.gesture) return this.reject('Terminez ou annulez le geste en cours avant une autre édition.');
+    if (!changes.length) return { status: 'unchanged' };
     if (!this.target || !this.elements.length) return this.reject('Choisissez une cible avant d’enregistrer la propriété.');
-    if (!this.compatible(property)) return this.reject('Valeurs d’origine différentes : utilisez des ID individuels pour cette propriété.');
-    const doc = this.scene.ownerDocument; const probe = doc.createElement('div'); probe.style.setProperty(property, newValue);
-    if (!newValue || !probe.style.getPropertyValue(property)) return this.reject('Valeur CSS non valide.');
+    if (!this.elements.every(element => resolveTarget(this.scene, this.target ?? '').includes(element))) return this.reject('La cible ne correspond plus à la sélection. Choisissez sa nouvelle référence.');
+    if (new Set(changes.map(change => change.property)).size !== changes.length) return this.reject('Une propriété ne peut apparaître qu’une fois dans la commande.');
     const state = this.adapter.getState();
     const object = state.objects.find(object => object.selector === this.target);
     const objectId = object?.id ?? `html:${this.target}`;
-    const oldValue = this.displayValue(property);
-    if (oldValue === newValue) return { status: 'unchanged' };
     const rank = specificity(this.target) ?? 0;
-    const conflict = state.objects.find(candidate => {
-      if (candidate.id === objectId || specificity(candidate.selector) !== rank || state.values[candidate.id]?.[property] === undefined || state.values[candidate.id]?.[property] === newValue) return false;
-      return resolveTarget(this.scene, candidate.selector).some(element => this.elements.includes(element) && !state.objects.some(higher => (specificity(higher.selector) ?? 0) > rank && state.values[higher.id]?.[property] !== undefined && resolveTarget(this.scene, higher.selector).includes(element)));
-    });
-    if (conflict) return this.reject(`Conflit non résolu : ${conflict.selector} et ${this.target}, ${property}, image ${state.frame}. Une résolution explicite est nécessaire.`);
-    const result = this.adapter.execute(`Change ${property}`, [{ objectId, selector: this.target, property, value: newValue, frame: state.frame }]);
-    if (result.status === 'changed') this.emitter.emit('propertychange', { property, oldValue, newValue, frame: state.frame });
+    const accepted: { property: string; newValue: string; oldValue: string }[] = [];
+    for (const { property, newValue, capture } of changes) {
+      if (!this.compatible(property)) return this.reject('Valeurs d’origine différentes : utilisez des ID individuels pour cette propriété.');
+      const probe = this.scene.ownerDocument.createElement('div');
+      if (isGeometryProperty(property)) { if (!validGeometryValue(property, newValue)) return this.reject('Valeur géométrique non valide.'); }
+      else { probe.style.setProperty(property, newValue); if (!newValue || !probe.style.getPropertyValue(property)) return this.reject('Valeur CSS non valide.'); }
+      const oldValue = this.displayValue(property);
+      if (oldValue === newValue && !capture) continue;
+      const conflict = state.objects.find(candidate => {
+        if (candidate.id === objectId || specificity(candidate.selector) !== rank || state.values[candidate.id]?.[property] === undefined || state.values[candidate.id]?.[property] === newValue) return false;
+        return resolveTarget(this.scene, candidate.selector).some(element => this.elements.includes(element) && !state.objects.some(higher => (specificity(higher.selector) ?? 0) > rank && state.values[higher.id]?.[property] !== undefined && resolveTarget(this.scene, higher.selector).includes(element)));
+      });
+      if (conflict) return this.reject(`Conflit non résolu : ${conflict.selector} et ${this.target}, ${property}, image ${state.frame}. Une résolution explicite est nécessaire.`);
+      accepted.push({ property, oldValue, newValue });
+    }
+    if (!accepted.length) return { status: 'unchanged' };
+    const result = this.adapter.execute(label, accepted.map(change => ({ objectId, selector: this.target ?? '', property: change.property, value: change.newValue, frame: state.frame })));
+    if (result.status === 'changed') for (const change of accepted) this.emitter.emit('propertychange', { ...change, frame: state.frame });
     if (result.status === 'rejected') return this.reject(result.message);
     return result;
   }
   public setAttribute(element: HTMLElement, attribute: 'id' | 'class', newValue: string | null): MutationResult {
+    if (this.gesture) return this.reject('Terminez ou annulez le geste avant de modifier le document original.');
     if (attribute !== 'id' && attribute !== 'class') return this.reject('Seuls les attributs ID et classe peuvent être modifiés.');
     if (this.disposed || !this.origin.has(element) || !this.scene.contains(element)) return this.reject('Élément du document original introuvable.');
     const oldValue = element.getAttribute(attribute);
@@ -154,6 +196,7 @@ export class HtmlDesigner<T = unknown> {
     const apply = (value: string | null, changes: readonly DocumentChange[], direction: 'execute' | 'undo' | 'redo'): void => {
       if (value === null) element.removeAttribute(attribute); else element.setAttribute(attribute, value);
       this.changes = changes; this.tree.refresh();
+      if (this.target && !this.elements.every(selected => resolveTarget(this.scene, this.target ?? '').includes(selected))) this.target = null;
       this.pendingDocumentChange = { changes: [change], direction };
     };
     return this.adapter.execute(`Change ${attribute}`, [], {
@@ -161,34 +204,160 @@ export class HtmlDesigner<T = unknown> {
       undo: () => apply(oldValue, before, 'undo'),
     });
   }
-  public undo(): MutationResult { return this.disposed ? { status: 'unchanged' } : this.adapter.undo(); }
-  public redo(): MutationResult { return this.disposed ? { status: 'unchanged' } : this.adapter.redo(); }
-  private compatible(property: string): boolean { return new Set(this.elements.map(element => this.origin.value(element, property))).size <= 1; }
+  public undo(): MutationResult { this.cancelGeometryGesture(); return this.disposed ? { status: 'unchanged' } : this.adapter.undo(); }
+  public redo(): MutationResult { this.cancelGeometryGesture(); return this.disposed ? { status: 'unchanged' } : this.adapter.redo(); }
+  private compatible(property: string): boolean { return isGeometryProperty(property) || new Set(this.elements.map(element => this.origin.value(element, property))).size <= 1; }
   private displayValue(property: string): string {
     const state = this.adapter.getState();
     const object = state.objects.find(candidate => candidate.selector === this.target);
     const value = object ? state.values[object.id]?.[property] : undefined;
     if (value !== undefined) return value;
+    const first = this.elements[0];
+    if (first && isGeometryProperty(property)) {
+      const values = new Set(this.elements.map(element => {
+        const projected = this.projectedValues.get(element) ?? {};
+        const origin = projected['transform-origin'];
+        return projected[property] ?? (origin && (property === 'pivotX' || property === 'pivotY') ? pivotCoordinates(origin)[property] : geometryDefaults(this.origin, element)[geometryStateKey(property)]);
+      }));
+      return values.size === 1 ? [...values][0] ?? '' : '';
+    }
     const values = new Set(this.elements.map(element => element.ownerDocument.defaultView?.getComputedStyle(element).getPropertyValue(property) ?? ''));
     return values.size === 1 ? [...values][0] ?? '' : '';
   }
+  public getGeometryState(): GeometryState | null {
+    if (this.gesture) return { ...this.gesture.state, ...this.gesture.values };
+    const element = this.elements.length === 1 ? this.elements[0] : undefined;
+    if (!element || this.disposed) return null;
+    const defaults = geometryDefaults(this.origin, element); const evaluated = this.projectedValues.get(element) ?? {};
+    const evaluatedOrigin = evaluated['transform-origin'];
+    if (evaluatedOrigin) Object.assign(defaults, pivotCoordinates(evaluatedOrigin));
+    const height = evaluated.height ?? defaults.height;
+    return { translateX: evaluated.translateX ?? defaults.translateX, translateY: evaluated.translateY ?? defaults.translateY, rotate: evaluated.rotation ?? defaults.rotate, scaleX: evaluated.scaleX ?? defaults.scaleX, scaleY: evaluated.scaleY ?? defaults.scaleY, pivotX: evaluated.pivotX ?? defaults.pivotX, pivotY: evaluated.pivotY ?? defaults.pivotY, width: evaluated.width ?? defaults.width, height: unresolvedPercentageHeight(element, height) ? 'auto' : height };
+  }
+  private geometryView(): GeometryView {
+    return { element: this.elements.length === 1 ? this.elements[0] ?? null : null, state: this.getGeometryState(), tool: this.geometryTool, mode: this.mode, active: this.gesture !== null, options: this.geometryOptions, guides: this.gesture?.guides ?? [] };
+  }
+  public setGeometryTool(tool: GeometryTool): void {
+    if (!['move', 'dimensions', 'rotate', 'scale', 'pivot'].includes(tool)) { this.report('Outil géométrique inconnu.'); return; }
+    this.cancelGeometryGesture(); this.geometryTool = tool; this.geometryControls?.refresh();
+  }
+  public setGeometryOptions(settings: Partial<GeometryOptions>): void {
+    if (settings.gridSize !== undefined && (!Number.isFinite(settings.gridSize) || settings.gridSize <= 0)) { this.report('Le pas de grille doit être strictement positif.'); return; }
+    this.geometryOptions = { ...this.geometryOptions, ...settings }; this.geometryControls?.refresh();
+  }
+  public beginGeometryGesture(tool: GeometryTool): MutationResult {
+    if (this.disposed || this.mode !== 'select') return this.reject('Les outils géométriques sont disponibles en mode Sélection.');
+    if (this.gesture) return this.reject('Un geste est déjà en cours.');
+    const element = this.elements.length === 1 ? this.elements[0] : undefined;
+    if (!element) return this.reject('Sélectionnez une cible individuelle pour manipuler ses poignées.');
+    if (!this.target) {
+      this.pendingGeometryTarget = true;
+      this.ui.showTargets(targetChoices(element), selector => resolveTarget(this.scene, selector).length);
+      return this.reject('Choisissez la cible du geste avant son premier enregistrement.');
+    }
+    const state = this.getGeometryState();
+    const base = this.projectedValues.get(element)?.transform ?? this.origin.value(element, 'transform');
+    const authoredTransform = this.projectedValues.get(element)?.transform ?? this.origin.authoredValue(element, 'transform');
+    if (tool === 'dimensions' && /%|var\(|calc\(/i.test(authoredTransform)) return this.reject('La transformation de base dépend d’unités relatives ou d’expressions. Modifiez les dimensions dans le panneau CSS pour conserver cette source ; le suivi de cette poignée n’est pas pris en charge.');
+    const context = geometryContext(element, base, state ?? undefined);
+    if (!state || context.status === 'rejected') return this.reject(context.status === 'rejected' ? context.message : 'État géométrique indisponible.');
+    this.geometryTool = tool;
+    const unknownTransform = base && base !== 'none' && ((!this.origin.authoredValue(element, 'transform') && !this.projectedValues.get(element)?.transform) || /^(?:inherit|revert|revert-layer)$/.test(authoredTransform)) ? base : null;
+    this.gesture = { element, selector: this.target, frame: this.adapter.getState().frame, tool, state, metrics: context.metrics, values: {}, guides: [], confirmation: false, rect: element.getBoundingClientRect(), parentRect: element.parentElement?.getBoundingClientRect() ?? this.scene.getBoundingClientRect(), unknownTransform, convertedTransform: null };
+    this.geometryControls?.refresh(); return { status: 'changed' };
+  }
+  public isGeometryGestureActive(): boolean { return this.gesture !== null; }
+  public updateGeometryGesture(delta: Point, settings: { allowUnitReplacement?: boolean; bypassSnap?: boolean } = {}): GeometryUpdateResult {
+    const gesture = this.gesture;
+    if (!gesture) return this.reject('Aucun geste géométrique en cours.');
+    if (this.adapter.getState().frame !== gesture.frame || this.target !== gesture.selector || !this.scene.contains(gesture.element)) { this.cancelGeometryGesture(); return this.reject('Le contexte du geste a changé.'); }
+    let effectiveDelta = delta;
+    if (gesture.tool === 'move' && Number.isFinite(delta.x) && Number.isFinite(delta.y)) {
+      const targets: { x?: number; y?: number }[] = []; const display = new Map<string, number>();
+      const reference = gesture.parentRect;
+      const anchors = [reference, ...Array.from(gesture.element.parentElement?.children ?? []).filter(node => node !== gesture.element).map(node => node.getBoundingClientRect())];
+      for (const box of anchors) for (const offset of [0, .5, 1]) {
+        for (const edge of [0, .5, 1]) {
+          const x = box.left + box.width * edge - reference.left - gesture.rect.width * offset;
+          const y = box.top + box.height * edge - reference.top - gesture.rect.height * offset;
+          targets.push({ x }, { y }); display.set(`x:${x}`, box.left + box.width * edge); display.set(`y:${y}`, box.top + box.height * edge);
+        }
+      }
+      const start = { x: gesture.rect.left - reference.left, y: gesture.rect.top - reference.top };
+      const snapped = snapPosition({ x: start.x + delta.x, y: start.y + delta.y }, targets, { enabled: this.geometryOptions.snap, bypass: settings.bypassSnap ?? false, grid: this.geometryOptions.grid ? this.geometryOptions.gridSize : 0, threshold: 6 });
+      effectiveDelta = { x: snapped.position.x - start.x, y: snapped.position.y - start.y };
+      gesture.guides = this.geometryOptions.guides ? snapped.guides.map(guide => ({ ...guide, value: display.get(`${guide.axis}:${guide.value}`) ?? guide.value + (guide.axis === 'x' ? reference.left : reference.top) })) : [];
+    }
+    const result = updateGeometry(gesture.state, gesture.metrics, gesture.tool, effectiveDelta, settings);
+    if (result.status === 'rejected') return this.reject(result.message);
+    const replacements = [...(gesture.unknownTransform ? ['transform'] : []), ...(result.status === 'confirmation-required' ? result.properties : result.replacements)];
+    if (replacements.length && !settings.allowUnitReplacement) {
+      gesture.confirmation = true;
+      const message = `Autoriser le remplacement en pixels des propriétés suivantes : ${replacements.join(', ')}${gesture.unknownTransform ? ' (transformation source inaccessible ou ambiguë : copie de sa matrice)' : ''}.`;
+      this.report(message); return { status: 'confirmation-required', properties: replacements, message };
+    }
+    if (result.status === 'confirmation-required') return result;
+    if (gesture.unknownTransform) gesture.convertedTransform = gesture.unknownTransform;
+    gesture.confirmation = false; gesture.values = result.values;
+    this.render(); return { status: 'changed' };
+  }
+  public commitGeometryGesture(): MutationResult {
+    const gesture = this.gesture;
+    if (!gesture) return { status: 'unchanged' };
+    this.gesture = null; this.render();
+    if (gesture.confirmation) return this.reject('La conversion en pixels doit être confirmée avant l’enregistrement.');
+    if (this.adapter.getState().frame !== gesture.frame || this.target !== gesture.selector || !this.scene.contains(gesture.element)) return this.reject('Le contexte du geste a changé.');
+    return this.editProperties([...Object.entries(geometryValues(gesture.values)).map(([property, newValue]) => ({ property, newValue })), ...(gesture.convertedTransform ? [{ property: 'transform', newValue: gesture.convertedTransform, capture: true }] : [])], `Geometry ${gesture.tool}`);
+  }
+  public cancelGeometryGesture(): void {
+    if (!this.gesture) return;
+    this.gesture = null;
+    if (!this.disposed) this.render();
+  }
+  public setGeometryPivot(xPercent: number, yPercent: number): MutationResult {
+    if (![xPercent, yPercent].every(value => Number.isFinite(value) && value >= 0 && value <= 100)) return this.reject('Le pivot doit se trouver entre 0 et 100 %.');
+    const started = this.beginGeometryGesture('pivot'); if (started.status !== 'changed') return started;
+    const gesture = this.gesture; if (!gesture) return { status: 'unchanged' };
+    const x = geometryLengthPixels(gesture.state.pivotX, gesture.metrics.width, gesture.metrics);
+    const y = geometryLengthPixels(gesture.state.pivotY, gesture.metrics.height, gesture.metrics);
+    if (x === null || y === null) { this.cancelGeometryGesture(); return this.reject('Les unités du pivot ne peuvent pas être converties fidèlement.'); }
+    const result = this.updateGeometryGesture({ x: xPercent * gesture.metrics.width / 100 - x, y: yPercent * gesture.metrics.height / 100 - y }, { bypassSnap: true });
+    if (result.status !== 'changed') { this.cancelGeometryGesture(); return result.status === 'confirmation-required' ? this.reject(result.message) : result; }
+    return this.commitGeometryGesture();
+  }
   private render(): void {
+    const restoreScroll = capturePreviewScroll([...this.projectedValues.keys(), ...this.elements, ...this.scrollRoots]);
+    try { this.projectPreview(); }
+    finally { if (restoreScroll()) this.highlight(); }
+  }
+  private projectPreview(): void {
     this.origin.restore();
+    this.projectedValues = new Map();
     const state = this.adapter.getState();
     const applied = new Map<HTMLElement, Map<string, { value: string; rank: number; selector: string }[]>>();
-    for (const object of state.objects) for (const element of resolveTarget(this.scene, object.selector)) {
+    const draft = this.gesture ? { ...geometryValues(this.gesture.values), ...(this.gesture.convertedTransform ? { transform: this.gesture.convertedTransform } : {}) } : {};
+    const sources = state.objects.map(object => ({ ...object, values: { ...state.values[object.id], ...(object.selector === this.gesture?.selector ? draft : {}) } }));
+    if (this.gesture && !sources.some(source => source.selector === this.gesture?.selector)) sources.push({ id: 'gesture-preview', selector: this.gesture.selector, values: draft });
+    for (const object of sources) for (const element of resolveTarget(this.scene, object.selector)) {
       const properties = applied.get(element) ?? new Map<string, { value: string; rank: number; selector: string }[]>();
-      for (const [property, value] of Object.entries(state.values[object.id] ?? {})) {
+      for (const [property, value] of Object.entries(object.values)) {
         const rank = specificity(object.selector) ?? 0;
         properties.set(property, [...(properties.get(property) ?? []), { value, rank, selector: object.selector }]);
       }
       applied.set(element, properties);
     }
-    for (const [element, properties] of applied) for (const [property, entries] of properties) {
+    for (const [element, properties] of applied) {
+      const values: Record<string, string> = {};
+      for (const [property, entries] of properties) {
       const highest = Math.max(...entries.map(entry => entry.rank));
       const winners = entries.filter(entry => entry.rank === highest);
       if (new Set(winners.map(entry => entry.value)).size > 1) { this.report(`Conflit : ${winners.map(entry => entry.selector).join(' / ')}, ${property}, image ${state.frame}. Aperçu suspendu pour cette propriété.`); continue; }
-      const winner = winners[0]; if (winner) this.origin.applyPreview(element, property, winner.value);
+      const winner = winners[0]; if (winner) values[property] = winner.value;
+      }
+      const hasGeometry = Object.keys(values).some(isGeometryProperty);
+      this.projectedValues.set(element, values);
+      for (const [property, value] of Object.entries(values)) if (!isGeometryProperty(property) && !(hasGeometry && property === 'transform')) this.origin.applyPreview(element, property, value);
+      if (hasGeometry) projectGeometry(this.origin, element, values);
     }
     this.tree.setSelection(this.elements);
     this.ui.setSelection(this.target ?? (this.elements[0] ? `${this.elements[0].localName}${this.elements[0].id ? `#${this.elements[0].id}` : ''} · inspection` : 'Sélectionnez un élément'), this.elements.length === 1 ? this.elements[0] : undefined);
@@ -196,23 +365,25 @@ export class HtmlDesigner<T = unknown> {
   }
   private refreshPanel(): void {
     const element = this.elements[0];
-    const properties = element ? [...new Set([...commonProperties, ...this.origin.properties(element)])] : [];
+    const properties = element ? [...new Set([...commonProperties, ...geometryProperties, ...this.origin.properties(element)])] : [];
     const descriptors: CssProperty[] = properties.map(name => ({ name, label: labels[name] ?? name, value: this.displayValue(name), disabled: !this.compatible(name), ...(!this.compatible(name) ? { diagnostic: 'Valeurs d’origine différentes. Utilisez des ID individuels pour cette propriété.' } : (this.elements.length > 1 && !this.displayValue(name) ? { diagnostic: 'Valeurs d’aperçu différentes. Une cible plus spécifique peut rester prioritaire.' } : {})) }));
     this.panel.setProperties(descriptors);
   }
   private highlight(): void {
     for (const overlay of this.overlays) overlay.remove(); this.overlays = [];
-    if (this.mode === 'test' || this.disposed) return;
+    if (this.mode === 'test' || this.disposed) { this.geometryControls?.refresh(); return; }
     for (const element of this.elements) {
       const rect = element.getBoundingClientRect(); const overlay = element.ownerDocument.createElement('div'); overlay.className = 'HtmlDesignerOverlay'; overlay.setAttribute('aria-hidden', 'true');
       Object.assign(overlay.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
       element.ownerDocument.body.append(overlay); this.overlays.push(overlay);
     }
+    this.geometryControls?.refresh();
   }
   private report(message: string): void { this.ui.setStatus(message); this.emitter.emit('diagnostic', { message }); }
   private reject(message: string): MutationResult { this.report(message); this.refreshPanel(); return { status: 'rejected', message }; }
   public dispose(): void {
     if (this.disposed) return; this.disposed = true;
+    this.gesture = null; this.geometryControls?.destroy();
     this.abort.abort(); for (const unsubscribe of this.subscriptions) unsubscribe();
     this.origin.restore(); this.highlight(); this.panel.destroy(); this.tree.destroy(); this.ui.destroy(); this.emitter.clear();
   }

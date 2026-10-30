@@ -10,10 +10,12 @@ The interface is in French. Requires Node.js 24+ and npm 11+.
 | `@kazo-ca/hierarchical-dom-tree` | Keyboard-accessible DOM hierarchy and controlled selection | None |
 | `@kazo-ca/html-designer` | Coordinates an existing HTML scene, both controls and an injected Timeline adapter | The two controls |
 
-The first functional batch provides inspection, synchronized selection, selection/test modes,
+The functional batches provide inspection, synchronized selection, selection/test modes,
 explicit first-edit targeting, property edits, shared undo/redo, original ID/class change tracking
 with Full XPath, and temporary style preview. **No real JsAnimationTimeline version is integrated.**
 The shipped demo uses recorded samples and a deliberately limited test fixture.
+Batch 2 adds move, dimensions, rotation, scale, compensated pivot, grid/alignment aids,
+pointer/keyboard interaction and one undo per multi-property gesture.
 
 ```sh
 npm ci --ignore-scripts
@@ -42,6 +44,14 @@ In that fresh scene, **Nouvel identifiant** and **Classes du document** demonstr
 persistent change journal and its original Full XPath. Scene samples are in `fixtures/`
 and reused by the automated tests.
 
+Use **Atelier géométrique**, choose a tool and drag its handle. Escape cancels; movement
+arrows use 1px, Shift uses10px, Alt bypasses snapping. **Dimensions** edits width/height,
+while **Échelle** edits independent factors. **Pivot** exposes nine presets and preserves
+the visible position. **Expression CSS** demonstrates an explicit pixel-conversion choice.
+The **Scénario géométrique** selector also loads containing-block, stylesheet, nesting and
+identity cases reused by browser tests. Source transforms are retained; the new spatial
+channels are adjustments over that base. See the batch2 support limits before integrating.
+
 ## Consumer API
 
 ```ts
@@ -69,7 +79,7 @@ designer.on('propertychange', ({ property, oldValue, newValue, frame }) => {
 ```
 
 `createHostAdapter` is application-provided; its local proposed interface is documented
-in [HA-ADAPTER-001/r1](doc/implementation/adapter-contract.md). It is **not** an existing
+in [HA-ADAPTER-001/r2](doc/implementation/adapter-contract.md). It is **not** an existing
 JsAnimationTimeline API. No fake is exported from the three libraries. Build outputs
 include ESM, declarations, CSS and the existing GPL-2.0 license. Package names are
 provisional; nothing has been published.
@@ -77,3 +87,4 @@ provisional; nothing has been published.
 Read [the production plan](doc/implementation/plan.md),
 [API gaps and batch status](doc/implementation/status.md), and the unchanged
 [product handoff](doc/integration/README.md) before extending the implementation.
+Geometry delivery and support limits are documented in [geometry batch status](doc/implementation/geometry-batch.md).

@@ -36,7 +36,7 @@ export function createRecordedTimeline(options: RecordedOptions = {}): RecordedT
     return values;
   };
   return {
-    kind: 'simulation', contractRevision: 'HA-TL-001/r1',
+    kind: 'simulation', contractRevision: 'HA-TL-001/r2',
     get listenerCount(): number { return listeners.size; },
     getState(): TimelineState { return { frame, duration: 100, ...snapshot, values: getValues(), selectedObjectId, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 }; },
     getKeys(): readonly PropertyWrite[] { return snapshot.keys.map(key => ({ ...key })); },
