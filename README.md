@@ -55,6 +55,14 @@ The **Scénario géométrique** selector also loads containing-block, stylesheet
 identity cases reused by browser tests. Source transforms are retained; the new spatial
 channels are adjustments over that base. See the batch2 support limits before integrating.
 
+Use **Atelier CSS** to try value suggestions and complex assistants. Search for
+`border-block-start-style`, open **▾**, then select a style with mouse or arrows/Enter.
+Each **⋯** action opens a draft editor for its property; **Appliquer** creates one
+undoable change and **Annuler** discards the draft. Colors/alpha, borders, shadows,
+ordered transforms, gradients and typography share the same controlled contract.
+The static MDN catalogue covers 671 property names, with structured editors for
+remaining complex grammars and free CSS input for arbitrary values.
+
 ## Consumer API
 
 ```ts

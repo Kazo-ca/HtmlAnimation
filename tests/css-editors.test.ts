@@ -43,8 +43,28 @@ function source(dialog: HTMLElement, name: string): HTMLTextAreaElement {
 function draft(dialog: HTMLElement, name: string, value: string): void {
   const textarea = source(dialog, name); textarea.value = value; textarea.dispatchEvent(new Event('input', { bubbles: true }));
 }
+function field(dialog: HTMLElement, label: string): HTMLInputElement {
+  const input = [...dialog.querySelectorAll<HTMLInputElement>('input')].find(element => element.getAttribute('aria-label') === label);
+  if (!input) throw new Error(`Missing assistant field: ${label}`); return input;
+}
+function changeField(dialog: HTMLElement, label: string, value: string): void {
+  const input = field(dialog, label); input.value = value; input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+function borderFields(dialog: HTMLElement, width: string, style: string, color: string): void {
+  changeField(dialog, 'Épaisseur de bordure', width);
+  const select = dialog.querySelector<HTMLSelectElement>('select[aria-label="Style de bordure"]');
+  if (!select) throw new Error('Missing border style choice.'); select.value = style; select.dispatchEvent(new Event('change', { bubbles: true }));
+  changeField(dialog, 'Couleur de bordure', color);
+}
 
 describe('CSS value autocomplete without host mutation', () => {
+  it('keeps a visible value menu anchored when an ancestor scroll event arrives after opening', () => {
+    const { panel, container } = setup([{ name: 'border-block-start-style', value: 'none' }]); const changed = vi.fn(); panel.onChange(changed);
+    const input = propertyInput(container, 'border-block-start-style');
+    vi.spyOn(input, 'getBoundingClientRect').mockReturnValue({ x: 20, y: 40, left: 20, top: 40, right: 150, bottom: 70, width: 130, height: 30, toJSON: () => ({}) });
+    openValues(container, 'border-block-start-style'); container.dispatchEvent(new Event('scroll'));
+    expect(option(container, 'solid')).toBeDefined(); expect(input.getAttribute('aria-expanded')).toBe('true'); expect(changed).not.toHaveBeenCalled();
+  });
   it('resolves logical border styles and CSS-wide values as selectable suggestions', () => {
     const properties = Object.freeze([Object.freeze({ name: 'border-block-start-style', value: 'none' })]);
     const { panel, container } = setup(properties); const changed = vi.fn(); panel.onChange(changed);
@@ -155,6 +175,28 @@ describe('structured CSS drafts', () => {
     panel.setProperties([{ name: 'border', value: '4px solid green' }]); stale.click();
     expect(changed).not.toHaveBeenCalled(); expect(container.querySelector('[role="dialog"]')).toBeNull(); expect(propertyInput(container, 'border').value).toBe('4px solid green');
   });
+
+  it('combines border assistant field changes into one applied event', () => {
+    const { panel, container } = setup([{ name: 'border', value: '1px solid red' }]); const changed = vi.fn(); panel.onChange(changed);
+    const dialog = openEditor(container, 'border'); borderFields(dialog, '3px', 'double', 'blue');
+    expect(source(dialog, 'border').value).toBe('3px double blue'); expect(changed).not.toHaveBeenCalled();
+    expect(propertyInput(container, 'border').value).toBe('1px solid red'); button(dialog, 'Appliquer').click();
+    expect(changed).toHaveBeenCalledExactlyOnceWith({ property: 'border', oldValue: '1px solid red', newValue: '3px double blue' });
+  });
+
+  it('edits alpha through its numeric assistant and discards the draft without normalization', () => {
+    const value = 'rgba(10, 20, 30, 0.75)'; const { panel, container } = setup([{ name: 'color', value }]); const changed = vi.fn(); panel.onChange(changed);
+    const dialog = openEditor(container, 'color'); changeField(dialog, 'Opacité de la couleur', '0.25');
+    expect(source(dialog, 'color').value).toBe('rgba(10, 20, 30, 0.25)'); expect(changed).not.toHaveBeenCalled();
+    button(dialog, 'Annuler').click(); expect(propertyInput(container, 'color').value).toBe(value); expect(changed).not.toHaveBeenCalled();
+  });
+
+  it('retains literal variables and nested fallback components through open, cancel and unchanged apply', () => {
+    const value = 'var(--accent-border, 1px solid rgb(1, 2, 3))'; const { panel, container } = setup([{ name: 'border', value }]); const changed = vi.fn(); panel.onChange(changed);
+    let dialog = openEditor(container, 'border'); expect(source(dialog, 'border').value).toBe(value); button(dialog, 'Annuler').click();
+    expect(propertyInput(container, 'border').value).toBe(value); dialog = openEditor(container, 'border'); button(dialog, 'Appliquer').click();
+    expect(changed).not.toHaveBeenCalled(); expect(propertyInput(container, 'border').value).toBe(value);
+  });
 });
 
 describe('Designer history with CSS assistants and a recorded Timeline simulation', () => {
@@ -173,7 +215,7 @@ describe('Designer history with CSS assistants and a recorded Timeline simulatio
     const fixture = createSceneFixture(); for (const element of fixture.buttons) element.style.border = '1px solid red';
     const timeline = createRecordedTimeline(); const designer = new HtmlDesigner({ ...fixture, timeline, adapter: instance => instance }); designers.push(designer); designer.selectTarget('#button-1');
     const before = fixture.buttons.map(element => element.getAttribute('style')); const changed = vi.fn(); const documentChanged = vi.fn(); designer.on('propertychange', changed); designer.on('documentchange', documentChanged);
-    const dialog = openEditor(fixture.propertiesContainer, 'border'); draft(dialog, 'border', '2px dashed blue');
+    const dialog = openEditor(fixture.propertiesContainer, 'border'); borderFields(dialog, '2px', 'dashed', 'blue');
     expect(timeline.getKeys()).toHaveLength(0); button(dialog, 'Appliquer').click();
     expect(timeline.getKeys()).toHaveLength(1); expect(fixture.buttons[0].style.border).toBe('2px dashed blue'); expect(fixture.buttons[1].getAttribute('style')).toBe(before[1]);
     expect(changed).toHaveBeenCalledOnce(); expect(documentChanged).not.toHaveBeenCalled(); designer.undo();

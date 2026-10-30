@@ -19,7 +19,9 @@
     "dev": "vite --config vite.config.ts --host 127.0.0.1 --port 43127 --strictPort",
     "preview": "vite preview --config vite.config.ts --host 127.0.0.1 --port 43128 --strictPort",
     "test:e2e": "playwright test",
-    "check:packages": "node scripts/check-packages.mjs"
+    "check:packages": "node scripts/check-packages.mjs",
+    "generate:css-catalog": "node scripts/generate-css-catalog.mjs",
+    "check:css-catalog": "node scripts/generate-css-catalog.mjs --check"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

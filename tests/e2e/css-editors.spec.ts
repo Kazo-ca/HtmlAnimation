@@ -19,6 +19,13 @@ async function editor(page: Page, name: string): Promise<Locator> {
   const dialog = page.getByRole('dialog', { name: `Éditer ${name}`, exact: true }); await expect(dialog).toBeVisible(); return dialog;
 }
 
+async function setBorderFields(dialog: Locator): Promise<void> {
+  await dialog.getByLabel('Épaisseur de bordure', { exact: true }).fill('3px');
+  await dialog.getByLabel('Style de bordure', { exact: true }).selectOption('double');
+  await dialog.getByLabel('Couleur de bordure', { exact: true }).fill('rgb(20, 80, 160)');
+  await expect(dialog.getByLabel('Valeur CSS de border', { exact: true })).toHaveValue('3px double rgb(20, 80, 160)');
+}
+
 test('logical border autocomplete commits a keyboard value once and undo restores the simulated scene', async ({ page }) => {
   const target = await openCssScene(page); const before = await target.evaluate(element => getComputedStyle(element).getPropertyValue('border-block-start-style'));
   const input = await property(page, 'border-block-start-style'); await expect(input).toHaveAttribute('role', 'combobox');
@@ -34,10 +41,10 @@ test('logical border autocomplete commits a keyboard value once and undo restore
 test('structured border drafts cancel without keys and apply as one reversible accepted change', async ({ page }) => {
   const target = await openCssScene(page); const peer = page.locator('#scene-host #css-peer');
   const before = await target.getAttribute('style'); const sibling = await peer.getAttribute('style');
-  let dialog = await editor(page, 'border'); await dialog.getByLabel('Valeur CSS de border', { exact: true }).fill('3px double rgb(20, 80, 160)');
+  let dialog = await editor(page, 'border'); await setBorderFields(dialog);
   await expect(page.locator('#key-count')).toHaveText('0 clés · simulation'); await dialog.getByRole('button', { name: 'Annuler', exact: true }).click();
   await expect(target).toHaveAttribute('style', before ?? ''); await expect(page.locator('#undo')).toBeDisabled();
-  dialog = await editor(page, 'border'); await dialog.getByLabel('Valeur CSS de border', { exact: true }).fill('3px double rgb(20, 80, 160)');
+  dialog = await editor(page, 'border'); await setBorderFields(dialog);
   await dialog.getByRole('button', { name: 'Appliquer', exact: true }).click(); await expect(dialog).toBeHidden();
   await expect(target).toHaveCSS('border-top-style', 'double'); await expect(target).toHaveCSS('border-top-width', '3px');
   await expect(peer).toHaveAttribute('style', sibling ?? ''); await expect(page.locator('#key-count')).toHaveText('1 clés · simulation');
@@ -47,18 +54,25 @@ test('structured border drafts cancel without keys and apply as one reversible a
 
 test('color alpha, gradient and transform drafts each remain one undoable simulated property', async ({ page }) => {
   const target = await openCssScene(page);
-  for (const scenario of [
-    { name: 'color', value: 'rgba(30, 80, 140, 0.35)' },
-    { name: 'background-image', value: 'linear-gradient(45deg, red 0%, blue 100%)' },
-    { name: 'transform', value: 'translateX(12px) rotate(10deg)' },
-  ]) {
-    const before = await target.getAttribute('style'); const dialog = await editor(page, scenario.name);
-    await dialog.getByLabel(`Valeur CSS de ${scenario.name}`, { exact: true }).fill(scenario.value);
+  for (const name of ['color', 'background-image', 'transform']) {
+    const before = await target.getAttribute('style'); const dialog = await editor(page, name);
+    if (name === 'color') await dialog.getByLabel('Opacité de la couleur', { exact: true }).fill('0.35');
+    if (name === 'background-image') {
+      await dialog.getByLabel('Géométrie du dégradé 1', { exact: true }).fill('45deg');
+      await dialog.getByLabel('Position du point 1', { exact: true }).fill('15%');
+      await dialog.getByRole('button', { name: 'Ajouter un point', exact: true }).click();
+    }
+    if (name === 'transform') {
+      await dialog.getByLabel('Nouvelle fonction', { exact: true }).selectOption('translate'); await dialog.getByRole('button', { name: 'Ajouter une fonction', exact: true }).click();
+      await dialog.getByLabel('Argument 1 de translate 1', { exact: true }).fill('12px'); await dialog.getByLabel('Argument 2 de translate 1', { exact: true }).fill('4px');
+      await dialog.getByLabel('Nouvelle fonction', { exact: true }).selectOption('rotate'); await dialog.getByRole('button', { name: 'Ajouter une fonction', exact: true }).click();
+      await dialog.getByLabel('Argument 1 de rotate 2', { exact: true }).fill('10deg');
+    }
     await expect(page.locator('#key-count')).toHaveText('0 clés · simulation'); await dialog.getByRole('button', { name: 'Appliquer', exact: true }).click();
-    await expect(page.locator('#key-count')).toHaveText('1 clés · simulation'); await expect(page.locator('#event-log')).toContainText(`${scenario.name} :`);
-    if (scenario.name === 'color') await expect(target).toHaveCSS('color', scenario.value);
-    if (scenario.name === 'background-image') await expect(target).toHaveCSS('background-image', /linear-gradient\(45deg/);
-    if (scenario.name === 'transform') await expect(target).not.toHaveCSS('transform', 'none');
+    await expect(page.locator('#key-count')).toHaveText('1 clés · simulation'); await expect(page.locator('#event-log')).toContainText(`${name} :`);
+    if (name === 'color') await expect(target).toHaveCSS('color', /rgba\([^)]*, 0\.35\)/);
+    if (name === 'background-image') await expect(target).toHaveCSS('background-image', /linear-gradient\(45deg.*15%/);
+    if (name === 'transform') await expect(target).not.toHaveCSS('transform', 'none');
     await page.locator('#undo').click(); await expect(target).toHaveAttribute('style', before ?? ''); await expect(page.locator('#key-count')).toHaveText('0 clés · simulation');
   }
 });
@@ -84,8 +98,9 @@ for (const width of [320, 1440]) test(`CSS value menus and structured editors fi
   await property(page, 'border-block-start-style'); await page.getByRole('button', { name: 'Afficher les valeurs de border-block-start-style', exact: true }).click();
   await expect(page.getByRole('option', { name: 'solid', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: testInfo.outputPath(`css-suggestions-${width}.png`), fullPage: true, animations: 'disabled' });
+  await page.screenshot({ path: testInfo.outputPath(`css-suggestions-${width}.png`), animations: 'disabled' });
+  await expect(page.getByRole('option', { name: 'solid', exact: true })).toBeVisible();
   await page.keyboard.press('Escape'); const dialog = await editor(page, 'border'); await expect(dialog.getByRole('button', { name: 'Appliquer', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: testInfo.outputPath(`css-editor-${width}.png`), fullPage: true, animations: 'disabled' });
+  await page.screenshot({ path: testInfo.outputPath(`css-editor-${width}.png`), animations: 'disabled' });
 });

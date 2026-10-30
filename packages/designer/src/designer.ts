@@ -31,7 +31,7 @@ export interface DesignerOptions<T> {
   readonly timeline: T;
   readonly adapter: (timeline: T) => TimelineAdapter;
 }
-const commonProperties = ['opacity', 'width', 'height', 'position', 'left', 'top', 'transform', 'margin-top', 'padding', 'color', 'background-color', 'background-image', 'border-radius', 'font-size'];
+const commonProperties = ['opacity', 'width', 'height', 'position', 'left', 'top', 'transform', 'margin', 'margin-top', 'padding', 'color', 'background', 'background-color', 'background-image', 'border', 'border-radius', 'box-shadow', 'text-shadow', 'font', 'font-family', 'font-size'];
 const labels: Readonly<Record<string, string>> = { opacity: 'Opacité', width: 'Largeur', height: 'Hauteur', 'margin-top': 'Marge supérieure', 'background-color': 'Couleur de fond', color: 'Couleur', transform: 'Transformation', translateX: 'Déplacement X', translateY: 'Déplacement Y', rotation: 'Rotation', rotate: 'Rotation CSS', scaleX: 'Échelle X', scaleY: 'Échelle Y', pivotX: 'Pivot X', pivotY: 'Pivot Y' };
 
 export class HtmlDesigner<T = unknown> {
@@ -213,8 +213,8 @@ export class HtmlDesigner<T = unknown> {
   }
   public undo(): MutationResult { this.cancelGeometryGesture(); return this.disposed ? { status: 'unchanged' } : this.adapter.undo(); }
   public redo(): MutationResult { this.cancelGeometryGesture(); return this.disposed ? { status: 'unchanged' } : this.adapter.redo(); }
-  private compatible(property: string): boolean { return isGeometryProperty(property) || new Set(this.elements.map(element => this.origin.value(element, property))).size <= 1; }
-  private displayValue(property: string): string {
+  private compatible(property: string): boolean { return this.elements.length <= 1 || isGeometryProperty(property) || new Set(this.elements.map(element => this.origin.fingerprint(element, property))).size <= 1; }
+  private displayValue(property: string, computed?: ReadonlyMap<HTMLElement, CSSStyleDeclaration>): string {
     const state = this.adapter.getState();
     const object = state.objects.find(candidate => candidate.selector === this.target);
     const value = object ? state.values[object.id]?.[property] : undefined;
@@ -228,7 +228,7 @@ export class HtmlDesigner<T = unknown> {
       }));
       return values.size === 1 ? [...values][0] ?? '' : '';
     }
-    const values = new Set(this.elements.map(element => element.ownerDocument.defaultView?.getComputedStyle(element).getPropertyValue(property) ?? ''));
+    const values = new Set(this.elements.map(element => (computed?.get(element) ?? element.ownerDocument.defaultView?.getComputedStyle(element))?.getPropertyValue(property) ?? ''));
     return values.size === 1 ? [...values][0] ?? '' : '';
   }
   public getGeometryState(): GeometryState | null {
@@ -373,7 +373,12 @@ export class HtmlDesigner<T = unknown> {
   private refreshPanel(): void {
     const element = this.elements[0];
     const properties = element ? [...new Set([...commonProperties, ...geometryProperties, ...this.origin.properties(element)])] : [];
-    const descriptors: CssProperty[] = properties.map(name => ({ name, label: labels[name] ?? name, value: this.displayValue(name), disabled: !this.compatible(name), ...(!this.compatible(name) ? { diagnostic: 'Valeurs d’origine différentes. Utilisez des ID individuels pour cette propriété.' } : (this.elements.length > 1 && !this.displayValue(name) ? { diagnostic: 'Valeurs d’aperçu différentes. Une cible plus spécifique peut rester prioritaire.' } : {})) }));
+    const computed = new Map<HTMLElement, CSSStyleDeclaration>();
+    for (const selected of this.elements) { const style = selected.ownerDocument.defaultView?.getComputedStyle(selected); if (style) computed.set(selected, style); }
+    const descriptors: CssProperty[] = properties.map((name): CssProperty => {
+      const compatible = this.compatible(name); const value = this.displayValue(name, computed);
+      return { name, label: labels[name] ?? name, value, disabled: !compatible, ...(isGeometryProperty(name) ? { editor: name === 'scaleX' || name === 'scaleY' ? 'number' : 'dimension' } : {}), ...(!compatible ? { diagnostic: 'Valeurs d’origine différentes. Utilisez des ID individuels pour cette propriété.' } : (this.elements.length > 1 && !value ? { diagnostic: 'Valeurs d’aperçu différentes. Une cible plus spécifique peut rester prioritaire.' } : {})) };
+    });
     this.panel.setProperties(descriptors);
   }
   private highlight(): void {

@@ -49,7 +49,7 @@ describe('versioned CSS property catalogue', () => {
   it('does not leak range notation or empty function calls into selectable keywords', () => {
     const keywords = getCssPropertyMetadata('color').keywords;
     expect(keywords).toEqual(expect.arrayContaining(['currentColor', 'transparent']));
-    expect(keywords.some(keyword => /[<>\[\](),]|^\d/.test(keyword))).toBe(false);
+    expect(keywords.some(keyword => /[<>(),]|^\d/.test(keyword) || keyword.includes('[') || keyword.includes(']'))).toBe(false);
     expect(getCssPropertyMetadata('opacity').keywords).not.toContain('1');
   });
 

@@ -1,6 +1,11 @@
 // demo/styles.less
 body { margin: 0; }
 .DemoApp {
+  .css-editor-scene { padding: 24px; background: #fff; border: 1px solid #d4dfd7; }
+  .css-editor-scene h2 { font: 30px/1.15 Georgia, serif; max-width: 560px; }
+  .css-editor-scene p { color: #566c64; font-size: 12px; line-height: 1.7; }
+  .css-editor-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 24px; }
+  .css-subject { overflow-wrap: anywhere; }
   --ink: #203632; --muted: #536960; --paper: #f4f4ef; --line: #cfd8d2; --accent: #126a64;
   font: 14px/1.5 'Segoe UI', sans-serif; color: var(--ink); background: var(--paper); min-height: 100vh;
   * { box-sizing: border-box; }

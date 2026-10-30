@@ -3,6 +3,7 @@ import { HtmlDesigner } from '@kazo-ca/html-designer';
 import { createScene } from '../fixtures/scene.js';
 import { createRecordedTimeline } from '../fixtures/recorded-timeline.js';
 import { createGeometryScene } from '../fixtures/geometry-scene.js';
+import { createCssScene } from '../fixtures/css-scene.js';
 import type { GeometrySceneVariant } from '../fixtures/geometry-scene.js';
 import './styles.less';
 
@@ -22,10 +23,10 @@ const testMode = required<HTMLButtonElement>('#test-mode');
 let timeline = createRecordedTimeline({ reference: true });
 let designer: HtmlDesigner<typeof timeline>;
 let unsubscribe: (() => void) | undefined;
-function mount(reference: boolean, geometry: 'none' | 'plain' | 'expression' = 'none', variant: GeometrySceneVariant = 'basic'): void {
+function mount(reference: boolean, geometry: 'none' | 'plain' | 'expression' | 'css' = 'none', variant: GeometrySceneVariant = 'basic'): void {
   unsubscribe?.(); designer?.dispose();
   timeline = createRecordedTimeline({ reference });
-  const scene = geometry === 'none' ? createScene(document) : createGeometryScene(document, geometry === 'expression', variant); sceneHost.replaceChildren(scene);
+  const scene = geometry === 'css' ? createCssScene(document) : geometry === 'none' ? createScene(document) : createGeometryScene(document, geometry === 'expression', variant); sceneHost.replaceChildren(scene);
   designer = new HtmlDesigner({ scene, propertiesContainer, treeContainer, timeline, adapter: instance => instance });
   designer.on('propertychange', change => { log.textContent = `${change.property} : ${change.oldValue} → ${change.newValue} · image ${change.frame}`; });
   designer.on('documentchange', change => { log.textContent = `Document original : ${change.changes.length} modification(s) persistante(s) · ${change.direction === 'undo' ? 'annulation' : change.direction === 'redo' ? 'rétablissement' : 'enregistrement'}`; });
@@ -36,8 +37,9 @@ function mount(reference: boolean, geometry: 'none' | 'plain' | 'expression' = '
   };
   unsubscribe = timeline.onChange(update); update();
   selectMode.setAttribute('aria-pressed', 'true'); testMode.setAttribute('aria-pressed', 'false');
-  if (geometry !== 'none') designer.selectTarget('#geometry-box');
-  log.textContent = geometry !== 'none' ? 'Atelier géométrique · cible #geometry-box fournie par l’hôte · aucune clé avant validation du geste.' : reference ? 'Cas de référence chargé · groupe 50 %, bouton 2 à 80 % dès l’image 1.' : 'Scène sans clés · sélectionnez un élément, modifiez une propriété puis choisissez sa cible.';
+  if (geometry === 'plain' || geometry === 'expression') designer.selectTarget('#geometry-box');
+  if (geometry === 'css') designer.selectTarget('#css-box');
+  log.textContent = geometry === 'css' ? 'Atelier CSS · suggestions et éditeurs · les brouillons ne créent aucune clé.' : geometry !== 'none' ? 'Atelier géométrique · cible #geometry-box fournie par l’hôte · aucune clé avant validation du geste.' : reference ? 'Cas de référence chargé · groupe 50 %, bouton 2 à 80 % dès l’image 1.' : 'Scène sans clés · sélectionnez un élément, modifiez une propriété puis choisissez sa cible.';
 }
 undo.addEventListener('click', () => designer.undo()); redo.addEventListener('click', () => designer.redo());
 frame.addEventListener('change', () => timeline.navigate(Number(frame.value)));
@@ -50,6 +52,7 @@ required('#geometry-scene').addEventListener('click', () => {
   mount(false, 'plain', variant);
 });
 required('#geometry-expression').addEventListener('click', () => mount(false, 'expression'));
+required('#css-scene').addEventListener('click', () => mount(false, 'css'));
 selectMode.addEventListener('click', () => { designer.setMode('select'); selectMode.setAttribute('aria-pressed', 'true'); testMode.setAttribute('aria-pressed', 'false'); });
 testMode.addEventListener('click', () => { designer.setMode('test'); selectMode.setAttribute('aria-pressed', 'false'); testMode.setAttribute('aria-pressed', 'true'); log.textContent = 'Mode Test · les interactions du contenu sont actives.'; });
 mount(true);

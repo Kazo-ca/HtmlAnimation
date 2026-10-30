@@ -52,3 +52,15 @@ module import RED, with zero runtime cases executed at that stage. Preserve thes
 distinctions in the PR. Final counts, catalogue coverage, package consumer, browser
 checks, screenshots and ECC general/TypeScript/security review results belong in the
 delivery record and PR body.
+
+The first full validation exposed excessive repeated style reads and eager value
+validation during row construction. Refresh now reads one computed style per selected
+element and validates suggested whole values lazily when opening the list. The focused
+profile measured approximately 1.1 seconds down to 130 ms for 555 rows; no timeout
+threshold was raised to hide the regression.
+
+General and TypeScript review additionally reproduced seven cases covering loss of a
+named background color, oblique font angles, gradient interpolation preambles, empty
+alpha and the three individual transform longhands. Their regressions were RED before
+the targeted corrections, then all 55 model/assistant tests passed. Unknown background
+syntax falls back to structure; it is never silently discarded by another field edit.
