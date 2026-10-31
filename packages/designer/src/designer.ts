@@ -15,6 +15,10 @@ import type { GeometryGuide, GeometryMetrics, GeometryState, GeometryTool, Point
 import { GeometryControls } from './geometry-controls.js';
 import { capturePreviewScroll } from './preview-scroll.js';
 import type { GeometryOptions, GeometryUpdateResult, GeometryView } from './geometry-controls.js';
+import { ConflictUi } from './conflict-ui.js';
+import type { ConflictSnapshot } from './conflict-types.js';
+import { conflictWinner, copyConflictSnapshot, guardConflictTargets } from './conflicts.js';
+import type { ProjectionCandidate } from './conflicts.js';
 
 export interface PropertyEdit { readonly property: string; readonly newValue: string; readonly capture?: boolean }
 interface GeometryGesture {
@@ -41,6 +45,7 @@ export class HtmlDesigner<T = unknown> {
   private readonly panel: CssPropertiesPanel;
   private readonly tree: HierarchicalDomTree;
   private readonly ui: InspectorUi;
+  private readonly conflictsUi: ConflictUi;
   private readonly scrollRoots: readonly HTMLElement[];
   private readonly emitter = new DesignerEmitter();
   private readonly abort = new AbortController();
@@ -60,6 +65,9 @@ export class HtmlDesigner<T = unknown> {
   private geometryOptions: GeometryOptions = { grid: false, snap: false, guides: true, gridSize: 10 };
   private pendingGeometryTarget = false;
   private projectedValues = new Map<HTMLElement, Readonly<Record<string, string>>>();
+  private contextEpoch = 0;
+  private pendingConflict: { readonly id: string; readonly signature: string; readonly revision: string; readonly epoch: number; readonly targetsCurrent: () => boolean } | null = null;
+  private resolutionsKey = '';
 
   public constructor(options: DesignerOptions<T>) {
     this.scene = options.scene; this.adapter = options.adapter(options.timeline);
@@ -72,6 +80,8 @@ export class HtmlDesigner<T = unknown> {
       changeAttribute: (attribute, value) => { const element = this.elements[0]; if (element) this.setAttribute(element, attribute, value || null); },
     });
     this.panel = new CssPropertiesPanel(this.ui.panelContainer, { commonProperties: true });
+    this.conflictsUi = new ConflictUi(this.ui.root, { open: id => this.openConflict(id), apply: (id, choiceId) => { this.resolveConflict(id, choiceId); }, cancel: () => this.cancelConflict() });
+    this.resolutionsKey = JSON.stringify(this.getConflictState()?.resolutions ?? []);
     this.tree = new HierarchicalDomTree(options.treeContainer, { root: this.scene });
     this.subscriptions.push(this.panel.onChange(change => this.requestEdit(change.property, change.newValue)), this.tree.onSelectionChange((elements, context) => this.selectTreeElements(elements, context)), this.adapter.onChange(reason => this.timelineChanged(reason)));
     this.geometryControls = new GeometryControls(this.ui.root, { scene: this.scene, read: () => this.geometryView(), setTool: tool => this.setGeometryTool(tool), begin: tool => this.beginGeometryGesture(tool), update: (delta, settings) => this.updateGeometryGesture(delta, settings), commit: () => this.commitGeometryGesture(), cancel: () => this.cancelGeometryGesture(), setOptions: settings => this.setGeometryOptions(settings), setPivot: (x, y) => this.setGeometryPivot(x, y) });
@@ -87,7 +97,38 @@ export class HtmlDesigner<T = unknown> {
   }
   public on<K extends keyof DesignerEvents>(type: K, listener: (event: DesignerEvents[K]) => void): () => void { return this.emitter.on(type, listener); }
   public getDocumentChanges(): readonly DocumentChange[] { return this.changes.map(change => ({ ...change })); }
-  public setMode(mode: 'select' | 'test'): void { this.cancelGeometryGesture(); this.mode = mode; this.highlight(); }
+  public getConflictState(): ConflictSnapshot | null { return this.adapter.conflicts ? copyConflictSnapshot(this.adapter.conflicts.read()) : null; }
+  private cancelConflict(): void { this.contextEpoch++; this.pendingConflict = null; this.conflictsUi.close(); }
+  private openConflict(id: string): void {
+    this.cancelGeometryGesture(); this.cancelConflict();
+    const snapshot = this.getConflictState(); const diagnostic = snapshot?.diagnostics.find(candidate => candidate.id === id);
+    if (!snapshot || !diagnostic) return;
+    this.pendingConflict = { id, signature: diagnostic.signature, revision: snapshot.revision, epoch: this.contextEpoch, targetsCurrent: guardConflictTargets(this.scene, snapshot) };
+    this.conflictsUi.open(id, this.adapter.getState().selectedObjectId);
+  }
+  public resolveConflict(id: string, choiceId: string): MutationResult {
+    if (this.disposed) return this.reject('Le Designer est fermé.');
+    if (this.gesture) return this.reject('Terminez ou annulez le geste avant de résoudre le conflit.');
+    const capability = this.adapter.conflicts; const snapshot = this.getConflictState();
+    const diagnostic = snapshot?.diagnostics.find(candidate => candidate.id === id);
+    if (!capability || !snapshot || !diagnostic?.choices.some(choice => choice.id === choiceId)) return this.reject('Cette résolution n’est pas disponible dans l’adaptateur courant.');
+    const pending = this.pendingConflict;
+    const epoch = pending?.epoch ?? this.contextEpoch;
+    const revision = pending?.revision ?? snapshot.revision;
+    const signature = pending?.signature ?? diagnostic.signature;
+    const targetsCurrent = pending?.targetsCurrent ?? guardConflictTargets(this.scene, snapshot);
+    const frame = this.adapter.getState().frame;
+    const isCurrent = (): boolean => !this.disposed && this.contextEpoch === epoch && this.adapter.getState().frame === frame && capability.read().revision === revision && targetsCurrent();
+    if (pending && pending.id !== id || !isCurrent()) { this.cancelConflict(); return this.reject('Le contexte a changé. Ouvrez une nouvelle résolution.'); }
+    let result: MutationResult;
+    try { result = capability.resolve({ id, signature, choiceId, revision }, isCurrent); }
+    catch { result = { status: 'rejected', message: 'L’adaptateur n’a pas pu appliquer la résolution.' }; }
+    this.cancelConflict();
+    if (result.status === 'rejected') return this.reject(result.message);
+    if (result.status === 'changed') this.report('Résolution enregistrée dans le projet. Vous pouvez l’annuler.');
+    return result;
+  }
+  public setMode(mode: 'select' | 'test'): void { this.cancelConflict(); this.cancelGeometryGesture(); this.mode = mode; this.highlight(); }
   private selectTreeElements(elements: readonly HTMLElement[], context?: TreeSelectionContext): void {
     const selector = context?.kind === 'class' ? `.${context.className}` : null;
     if (selector && specificity(selector) === 1) { this.selectTarget(selector); return; }
@@ -96,6 +137,7 @@ export class HtmlDesigner<T = unknown> {
   }
   public selectElements(elements: readonly HTMLElement[]): void {
     if (this.disposed) return;
+    this.cancelConflict();
     this.cancelGeometryGesture();
     this.elements = [...new Set(elements)].filter(element => this.origin.has(element) && this.scene.contains(element));
     this.target = null; this.pending = null; this.ui.hideTargets();
@@ -109,6 +151,7 @@ export class HtmlDesigner<T = unknown> {
   }
   public selectTarget(selector: string): void {
     if (this.disposed) return;
+    this.cancelConflict();
     this.cancelGeometryGesture();
     const elements = resolveTarget(this.scene, selector);
     if (!elements.length) { this.report('Cible introuvable ou sélecteur non pris en charge : utilisez un ID ou des classes combinées.'); return; }
@@ -120,6 +163,7 @@ export class HtmlDesigner<T = unknown> {
   }
   private timelineChanged(reason: TimelineReason): void {
     if (this.syncing || this.disposed) return;
+    this.cancelConflict();
     if (this.gesture) { this.gesture = null; }
     if (reason === 'selection') {
       this.pending = null; this.ui.hideTargets();
@@ -129,6 +173,10 @@ export class HtmlDesigner<T = unknown> {
       this.emitter.emit('selectionchange', { elements: this.elements, objectId: state.selectedObjectId });
     }
     this.render();
+    const resolutions = this.getConflictState()?.resolutions ?? [];
+    const resolutionsKey = JSON.stringify(resolutions);
+    const changed = resolutionsKey !== this.resolutionsKey; this.resolutionsKey = resolutionsKey;
+    if (changed && (reason === 'execute' || reason === 'undo' || reason === 'redo')) this.emitter.emit('resolutionchange', { resolutions, direction: reason });
     const documentChange = this.pendingDocumentChange;
     this.pendingDocumentChange = null;
     if (documentChange) this.emitter.emit('documentchange', documentChange);
@@ -173,11 +221,12 @@ export class HtmlDesigner<T = unknown> {
       else { probe.style.setProperty(property, newValue); if (!newValue || !probe.style.getPropertyValue(property)) return this.reject('Valeur CSS non valide.'); }
       const oldValue = this.displayValue(property);
       if (oldValue === newValue && !capture) continue;
-      const conflict = state.objects.find(candidate => {
-        if (candidate.id === objectId || specificity(candidate.selector) !== rank || state.values[candidate.id]?.[property] === undefined || state.values[candidate.id]?.[property] === newValue) return false;
-        return resolveTarget(this.scene, candidate.selector).some(element => this.elements.includes(element) && !state.objects.some(higher => (specificity(higher.selector) ?? 0) > rank && state.values[higher.id]?.[property] !== undefined && resolveTarget(this.scene, higher.selector).includes(element)));
-      });
-      if (conflict) return this.reject(`Conflit non résolu : ${conflict.selector} et ${this.target}, ${property}, image ${state.frame}. Une résolution explicite est nécessaire.`);
+      for (const element of this.elements) {
+        const entries = state.objects.filter(candidate => candidate.id !== objectId && state.values[candidate.id]?.[property] !== undefined && resolveTarget(this.scene, candidate.selector).includes(element)).map(candidate => ({ objectId: candidate.id, selector: candidate.selector, rank: specificity(candidate.selector) ?? 0, value: state.values[candidate.id]?.[property] ?? '' }));
+        entries.push({ objectId, selector: this.target, rank, value: newValue });
+        const highest = Math.max(...entries.map(entry => entry.rank)); const winners = entries.filter(entry => entry.rank === highest);
+        if (new Set(winners.map(entry => entry.value)).size > 1 && !conflictWinner(this.getConflictState(), this.scene, element, property, state.frame, winners)) return this.reject(`Conflit non résolu : ${winners.map(entry => entry.selector).join(' / ')}, ${property}, image ${state.frame}. Une résolution explicite est nécessaire.`);
+      }
       accepted.push({ property, oldValue, newValue });
     }
     if (!accepted.length) return { status: 'unchanged' };
@@ -211,8 +260,8 @@ export class HtmlDesigner<T = unknown> {
       undo: () => apply(oldValue, before, 'undo'),
     });
   }
-  public undo(): MutationResult { this.cancelGeometryGesture(); return this.disposed ? { status: 'unchanged' } : this.adapter.undo(); }
-  public redo(): MutationResult { this.cancelGeometryGesture(); return this.disposed ? { status: 'unchanged' } : this.adapter.redo(); }
+  public undo(): MutationResult { this.cancelConflict(); this.cancelGeometryGesture(); return this.disposed ? { status: 'unchanged' } : this.adapter.undo(); }
+  public redo(): MutationResult { this.cancelConflict(); this.cancelGeometryGesture(); return this.disposed ? { status: 'unchanged' } : this.adapter.redo(); }
   private compatible(property: string): boolean { return this.elements.length <= 1 || isGeometryProperty(property) || new Set(this.elements.map(element => this.origin.fingerprint(element, property))).size <= 1; }
   private displayValue(property: string, computed?: ReadonlyMap<HTMLElement, CSSStyleDeclaration>): string {
     const state = this.adapter.getState();
@@ -341,15 +390,16 @@ export class HtmlDesigner<T = unknown> {
     this.origin.restore();
     this.projectedValues = new Map();
     const state = this.adapter.getState();
-    const applied = new Map<HTMLElement, Map<string, { value: string; rank: number; selector: string }[]>>();
+    const conflicts = this.getConflictState();
+    const applied = new Map<HTMLElement, Map<string, ProjectionCandidate[]>>();
     const draft = this.gesture ? { ...geometryValues(this.gesture.values), ...(this.gesture.convertedTransform ? { transform: this.gesture.convertedTransform } : {}) } : {};
     const sources = state.objects.map(object => ({ ...object, values: { ...state.values[object.id], ...(object.selector === this.gesture?.selector ? draft : {}) } }));
     if (this.gesture && !sources.some(source => source.selector === this.gesture?.selector)) sources.push({ id: 'gesture-preview', selector: this.gesture.selector, values: draft });
     for (const object of sources) for (const element of resolveTarget(this.scene, object.selector)) {
-      const properties = applied.get(element) ?? new Map<string, { value: string; rank: number; selector: string }[]>();
+      const properties = applied.get(element) ?? new Map<string, ProjectionCandidate[]>();
       for (const [property, value] of Object.entries(object.values)) {
         const rank = specificity(object.selector) ?? 0;
-        properties.set(property, [...(properties.get(property) ?? []), { value, rank, selector: object.selector }]);
+        properties.set(property, [...(properties.get(property) ?? []), { objectId: object.id, value, rank, selector: object.selector }]);
       }
       applied.set(element, properties);
     }
@@ -358,8 +408,10 @@ export class HtmlDesigner<T = unknown> {
       for (const [property, entries] of properties) {
       const highest = Math.max(...entries.map(entry => entry.rank));
       const winners = entries.filter(entry => entry.rank === highest);
-      if (new Set(winners.map(entry => entry.value)).size > 1) { this.report(`Conflit : ${winners.map(entry => entry.selector).join(' / ')}, ${property}, image ${state.frame}. Aperçu suspendu pour cette propriété.`); continue; }
-      const winner = winners[0]; if (winner) values[property] = winner.value;
+      const ambiguous = new Set(winners.map(entry => entry.value)).size > 1;
+      const winner = ambiguous ? conflictWinner(conflicts, this.scene, element, property, state.frame, winners) : winners[0];
+      if (!winner) { this.report(`Conflit : ${winners.map(entry => entry.selector).join(' / ')}, ${property}, image ${state.frame}. Aperçu suspendu pour cette propriété.`); continue; }
+      values[property] = winner.value;
       }
       const hasGeometry = Object.keys(values).some(isGeometryProperty);
       this.projectedValues.set(element, values);
@@ -368,7 +420,7 @@ export class HtmlDesigner<T = unknown> {
     }
     this.tree.setSelection(this.elements);
     this.ui.setSelection(this.target ?? (this.elements[0] ? `${this.elements[0].localName}${this.elements[0].id ? `#${this.elements[0].id}` : ''} · inspection` : 'Sélectionnez un élément'), this.elements.length === 1 ? this.elements[0] : undefined);
-    this.ui.setChanges(this.changes); this.refreshPanel(); this.highlight();
+    this.ui.setChanges(this.changes); this.conflictsUi.render(conflicts); this.refreshPanel(); this.highlight();
   }
   private refreshPanel(): void {
     const element = this.elements[0];
@@ -395,6 +447,7 @@ export class HtmlDesigner<T = unknown> {
   private reject(message: string): MutationResult { this.report(message); this.refreshPanel(); return { status: 'rejected', message }; }
   public dispose(): void {
     if (this.disposed) return; this.disposed = true;
+    this.cancelConflict(); this.conflictsUi.destroy();
     this.gesture = null; this.geometryControls?.destroy();
     this.abort.abort(); for (const unsubscribe of this.subscriptions) unsubscribe();
     this.origin.restore(); this.highlight(); this.panel.destroy(); this.tree.destroy(); this.ui.destroy(); this.emitter.clear();

@@ -17,6 +17,8 @@ this scope before implementation; the TDD guide authored the initial integration
 3. **Gradients and conflict resolution.** Stable stop identities, independent property
    lines, diagnostics and explicit persistent resolution commands. Until this exists,
    unresolved equal-specificity conflicts are rejected/suspended; no arbitrary winner.
+   Batch 3a delivers the explicit-conflict UI/adapter/simulation slice described in
+   `conflict-resolution.md`; independent gradient tracks remain the next sublot.
 4. **Persistence and faithful outputs.** Versioned editable project schema, original keys
    and decisions, JSON/JS/CSS fidelity and explicit unsupported-output diagnostics.
 5. **Real Timeline integration.** Receive exact API mapping and version/commit from the

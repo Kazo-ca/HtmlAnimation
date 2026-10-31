@@ -99,10 +99,10 @@ describe('explicit conflicts through scripted adapter capability', () => {
     const { designer, timeline, propertiesContainer } = setup(); const keys = timeline.getKeys();
     const event = vi.fn(); designer.on('resolutionchange', event);
     action(propertiesContainer, 'Résoudre le conflit').click();
-    const dialog = propertiesContainer.querySelector('[role="dialog"]'); expect(dialog).not.toBeNull();
+    const dialog = propertiesContainer.querySelector('dialog[open], [role="dialog"][open]'); expect(dialog).not.toBeNull();
     expect(dialog?.textContent).toContain('opacity'); expect(dialog?.textContent).toContain('.primary');
     action(dialog ?? propertiesContainer, 'Annuler').click();
-    expect(propertiesContainer.querySelector('[role="dialog"]')).toBeNull();
+    expect(propertiesContainer.querySelector('dialog[open], [role="dialog"][open]')).toBeNull();
     expect(timeline.getKeys()).toEqual(keys); expect(event).not.toHaveBeenCalled();
   });
 
@@ -126,6 +126,160 @@ describe('explicit conflicts through scripted adapter capability', () => {
     const designer = new HtmlDesigner({ ...fixture, timeline, adapter: instance => instance }); designers.push(designer);
     const keys = timeline.getKeys(); expect(designer.getConflictState()).toBeNull();
     for (const frame of [1, 20, 49, 50, 75, 100]) { timeline.navigate(frame); expect(fixture.buttons[1].style.opacity).toBe('0.8'); }
-    expect(timeline.getKeys()).toEqual(keys); expect(fixture.propertiesContainer.querySelector('[role="dialog"]')).toBeNull();
+    expect(timeline.getKeys()).toEqual(keys); expect(fixture.propertiesContainer.querySelector('dialog[open], [role="dialog"][open]')).toBeNull();
+  });
+
+  it('keeps a stored choice independent of the scene and tree selection', () => {
+    const { designer, buttons, timeline } = setup();
+    designer.resolveConflict('opacity-priority', 'other-wins'); const keys = timeline.getKeys();
+    designer.selectElements([buttons[2]]); expect(buttons[0].style.opacity).toBe('0.8');
+    designer.selectTarget('.button'); expect(buttons[0].style.opacity).toBe('0.8');
+    timeline.selectObject('other'); expect(buttons[0].style.opacity).toBe('0.8');
+    expect(timeline.getKeys()).toEqual(keys); expect(designer.getConflictState()?.resolutions[0]?.winnerObjectId).toBe('other');
+  });
+
+  it('routes only inside the authoritative half-open period without computing temporal values', () => {
+    const { designer, timeline, buttons } = setup({ fromFrame: 20, toFrame: 50, exclusive: true });
+    const samples = timeline.getKeys();
+    for (const frame of [19, 20, 49, 50]) timeline.execute('Supply exact recorded sample', samples.map(key => ({ ...key, frame })));
+    designer.resolveConflict('opacity-priority', 'other-wins');
+    for (const [frame, opacity] of [[19, '1'], [20, '0.8'], [49, '0.8'], [50, '1']] as const) {
+      timeline.navigate(frame); expect(buttons[0].style.opacity).toBe(opacity); expect(buttons[1].style.opacity).toBe('0.6');
+    }
+  });
+
+  it('shares property edit history and does not repeat resolution events for unrelated undo', () => {
+    const { designer, propertiesContainer, buttons } = setup(); const event = vi.fn();
+    designer.on('resolutionchange', event); designer.resolveConflict('opacity-priority', 'other-wins');
+    designer.selectTarget('.button'); expect(designer.editProperty('color', 'blue').status).toBe('changed');
+    expect(propertyInput(propertiesContainer, 'color').value).toBe('blue'); expect(event).toHaveBeenCalledOnce();
+    designer.undo(); expect(buttons[0].style.color).toBe('red'); expect(buttons[0].style.opacity).toBe('0.8'); expect(event).toHaveBeenCalledOnce();
+    designer.undo(); expect(buttons[0].style.opacity).toBe('1'); expect(event).toHaveBeenCalledTimes(2);
+    designer.redo(); expect(buttons[0].style.opacity).toBe('0.8'); designer.redo(); expect(buttons[0].style.color).toBe('blue'); expect(event).toHaveBeenCalledTimes(3);
+  });
+
+  it('announces and creates a start key only in the accepted atomic adapter command, with undo', () => {
+    const { designer, timeline } = setup({ startKey: true }); const keys = timeline.getKeys();
+    expect(designer.getConflictState()?.diagnostics[0]?.choices[1]?.createsKeys).toEqual([{ objectId: 'other', selector: '.primary', property: 'opacity', value: '0.8', frame: 1 }]);
+    expect(timeline.getKeys()).toEqual(keys);
+    expect(designer.resolveConflict('opacity-priority', 'other-wins').status).toBe('changed');
+    expect(timeline.getKeys()).toHaveLength(keys.length + 1);
+    expect(timeline.getKeys()).toContainEqual({ objectId: 'other', selector: '.primary', property: 'opacity', value: '0.8', frame: 1 });
+    designer.undo(); expect(timeline.getKeys()).toEqual(keys); expect(designer.getConflictState()?.resolutions).toEqual([]);
+    designer.redo(); expect(timeline.getKeys()).toHaveLength(keys.length + 1); expect(designer.getConflictState()?.resolutions).toHaveLength(1);
+  });
+
+  it('rejects unknown choices and treats an identical accepted decision as unchanged', () => {
+    const { designer, timeline } = setup(); const keys = timeline.getKeys(); const event = vi.fn(); designer.on('resolutionchange', event);
+    expect(designer.resolveConflict('missing', 'other-wins').status).toBe('rejected');
+    expect(designer.resolveConflict('opacity-priority', 'missing').status).toBe('rejected');
+    expect(event).not.toHaveBeenCalled(); expect(timeline.getKeys()).toEqual(keys);
+    designer.resolveConflict('opacity-priority', 'other-wins');
+    expect(designer.resolveConflict('opacity-priority', 'other-wins').status).toBe('unchanged'); expect(event).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a reentrant frame change before the adapter commits any resolution', () => {
+    const { designer, timeline, beforeConfirm } = setup(); const keys = timeline.getKeys(); const event = vi.fn(); designer.on('resolutionchange', event);
+    beforeConfirm(() => timeline.navigate(20));
+    expect(designer.resolveConflict('opacity-priority', 'other-wins').status).toBe('rejected');
+    expect(timeline.getKeys()).toEqual(keys); expect(designer.getConflictState()?.resolutions).toEqual([]); expect(event).not.toHaveBeenCalled();
+  });
+
+  it('rejects a reentrant selection change before the adapter commits any resolution', () => {
+    const { designer, timeline, buttons, beforeConfirm } = setup(); const keys = timeline.getKeys();
+    beforeConfirm(() => designer.selectElements([buttons[2]]));
+    expect(designer.resolveConflict('opacity-priority', 'other-wins').status).toBe('rejected');
+    expect(timeline.getKeys()).toEqual(keys); expect(designer.getConflictState()?.resolutions).toEqual([]);
+  });
+
+  it('stops applying a stale recorded signature and exposes detached snapshots', () => {
+    const { designer, adapter, buttons, invalidate } = setup(); designer.resolveConflict('opacity-priority', 'other-wins');
+    const snapshot = designer.getConflictState(); const resolution = snapshot?.resolutions[0];
+    if (!resolution) throw new Error('Missing stored resolution');
+    Reflect.set(resolution, 'winnerObjectId', 'group');
+    expect(adapter.conflicts.read().resolutions[0]?.winnerObjectId).toBe('other');
+    invalidate(); designer.selectElements([buttons[0]]);
+    expect(buttons[0].style.opacity).toBe('1');
+    expect(designer.getConflictState()?.diagnostics[0]?.signature).toBe('scripted-priority-v2');
+  });
+
+  it('invalidates an open confirmation when selection changes, without creating a choice', () => {
+    const { designer, timeline, buttons, propertiesContainer } = setup(); const keys = timeline.getKeys();
+    action(propertiesContainer, 'Résoudre le conflit').click(); expect(propertiesContainer.querySelector('dialog[open], [role="dialog"][open]')).not.toBeNull();
+    designer.selectElements([buttons[2]]); expect(propertiesContainer.querySelector('dialog[open], [role="dialog"][open]')).toBeNull();
+    expect(timeline.getKeys()).toEqual(keys); expect(designer.getConflictState()?.resolutions).toEqual([]);
+  });
+
+  it('refuses an old confirmation ticket when its signature changes without a notification', () => {
+    const { designer, timeline, propertiesContainer, invalidate } = setup(); const keys = timeline.getKeys();
+    const event = vi.fn(); designer.on('resolutionchange', event);
+    action(propertiesContainer, 'Résoudre le conflit').click();
+    const dialog = propertiesContainer.querySelector('dialog[open]'); const select = dialog?.querySelector('select');
+    if (!dialog || !select) throw new Error('Missing open confirmation');
+    select.value = 'other-wins'; select.dispatchEvent(new Event('change'));
+    invalidate(); action(dialog, 'Appliquer la résolution').click();
+    expect(timeline.getKeys()).toEqual(keys); expect(designer.getConflictState()?.resolutions).toEqual([]);
+    expect(event).not.toHaveBeenCalled(); expect(propertiesContainer.textContent).toContain('contexte a changé');
+  });
+
+  it.each(['class', 'style'] as const)('refuses a reentrant source %s change without adding partial keys or a decision', attribute => {
+    const { designer, timeline, buttons, beforeConfirm } = setup({ startKey: true }); const keys = timeline.getKeys();
+    const event = vi.fn(); designer.on('resolutionchange', event);
+    beforeConfirm(() => {
+      if (attribute === 'class') buttons[0].classList.add('changed-source');
+      else buttons[0].style.borderTopWidth = '3px';
+    });
+    expect(designer.resolveConflict('opacity-priority', 'other-wins').status).toBe('rejected');
+    expect(timeline.getKeys()).toEqual(keys); expect(designer.getConflictState()?.resolutions).toEqual([]); expect(event).not.toHaveBeenCalled();
+  });
+
+  it('refuses a resolution when a host validation callback disposes the Designer', () => {
+    const { designer, timeline, adapter, beforeConfirm } = setup({ startKey: true }); const keys = timeline.getKeys();
+    beforeConfirm(() => designer.dispose());
+    expect(designer.resolveConflict('opacity-priority', 'other-wins').status).toBe('rejected');
+    expect(timeline.getKeys()).toEqual(keys); expect(adapter.conflicts.read().resolutions).toEqual([]);
+    expect(timeline.listenerCount).toBe(0);
+  });
+
+  it('keeps shared undo and redo usable when a resolution observer throws', () => {
+    const { designer, buttons, timeline } = setup(); const keys = timeline.getKeys(); const diagnostic = vi.fn();
+    designer.on('diagnostic', diagnostic); designer.on('resolutionchange', () => { throw new Error('Host observer failure'); });
+    expect(designer.resolveConflict('opacity-priority', 'other-wins').status).toBe('changed');
+    expect(buttons[0].style.opacity).toBe('0.8'); expect(diagnostic).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('observateur') }));
+    expect(designer.undo().status).toBe('changed'); expect(buttons[0].style.opacity).toBe('1');
+    expect(designer.redo().status).toBe('changed'); expect(buttons[0].style.opacity).toBe('0.8'); expect(timeline.getKeys()).toEqual(keys);
+  });
+
+  it('detaches nested diagnostics, target arrays and announced writes from the adapter snapshot', () => {
+    const { designer, adapter } = setup({ startKey: true }); const shared = adapter.conflicts.read();
+    const read = vi.spyOn(adapter.conflicts, 'read').mockReturnValue(shared);
+    const snapshot = designer.getConflictState(); const diagnostic = snapshot?.diagnostics[0]; const choice = diagnostic?.choices[1]; const key = choice?.createsKeys[0];
+    if (!diagnostic || !choice || !key) throw new Error('Missing nested announcement');
+    Reflect.set(diagnostic, 'message', 'Changed client text'); Reflect.set(diagnostic.targets, 0, '#different');
+    Reflect.set(diagnostic.affectedTargets, 0, '#different'); Reflect.set(diagnostic.objectIds, 0, 'different');
+    Reflect.set(choice, 'label', 'Changed label'); Reflect.set(key, 'value', '0.1');
+    expect(shared.diagnostics[0]).toMatchObject({ message: 'Deux classes imposent des opacités différentes.', targets: ['.button', '.primary'], affectedTargets: ['#button-1'], objectIds: ['group', 'other'] });
+    expect(shared.diagnostics[0]?.choices[1]).toMatchObject({ label: 'Priorité à .primary', createsKeys: [{ value: '0.8' }] }); read.mockRestore();
+  });
+
+  it('rejects conflict resolution on an existing adapter without the optional capability', () => {
+    const fixture = createSceneFixture(); const timeline = createRecordedTimeline();
+    const designer = new HtmlDesigner({ ...fixture, timeline, adapter: instance => instance }); designers.push(designer);
+    const diagnostic = vi.fn(); designer.on('diagnostic', diagnostic);
+    expect(designer.resolveConflict('opacity-priority', 'other-wins').status).toBe('rejected');
+    expect(diagnostic).toHaveBeenCalledOnce(); expect(timeline.getKeys()).toEqual([]); expect(timeline.getState().canUndo).toBe(false);
+  });
+
+  it.each(['Appliquer la résolution', 'Annuler'])('restores focus to a connected conflict action after %s', confirmation => {
+    const { propertiesContainer } = setup(); const trigger = action(propertiesContainer, 'Résoudre le conflit');
+    trigger.focus(); expect(document.activeElement).toBe(trigger); trigger.click();
+    const dialog = propertiesContainer.querySelector('dialog[open]'); const select = dialog?.querySelector('select');
+    if (!dialog || !select) throw new Error('Missing open confirmation');
+    select.value = 'other-wins'; select.dispatchEvent(new Event('change'));
+    action(dialog, confirmation).click();
+    const focused = document.activeElement;
+    expect(focused?.isConnected).toBe(true); expect(focused).toBeInstanceOf(HTMLButtonElement);
+    expect(focused?.textContent).toBe('Résoudre le conflit');
+    expect(propertiesContainer.contains(focused)).toBe(true);
   });
 });

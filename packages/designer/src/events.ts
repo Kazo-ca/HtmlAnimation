@@ -1,4 +1,5 @@
 // packages/designer/src/events.ts
+import type { ConflictResolution } from './conflict-types.js';
 export interface DocumentChange {
   readonly fullXPath: string;
   readonly attribute: 'id' | 'class';
@@ -9,6 +10,7 @@ export interface DesignerEvents {
   selectionchange: { readonly elements: readonly HTMLElement[]; readonly objectId: string | null };
   propertychange: { readonly property: string; readonly oldValue: string; readonly newValue: string; readonly frame: number };
   documentchange: { readonly changes: readonly DocumentChange[]; readonly direction: 'execute' | 'undo' | 'redo' };
+  resolutionchange: { readonly resolutions: readonly ConflictResolution[]; readonly direction: 'execute' | 'undo' | 'redo' };
   diagnostic: { readonly message: string };
 }
 export class DesignerEmitter {

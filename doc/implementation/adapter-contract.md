@@ -1,5 +1,5 @@
 <!-- doc/implementation/adapter-contract.md -->
-# HA-ADAPTER-001 — local consumer boundary, revision 2
+# HA-ADAPTER-001 — local consumer boundary, revision 3
 
 Date: 2026-10-30. Consumes HA-TL-001/r2 and HA-DESIGN-001/r1 unchanged.
 Status: **proposal implemented and tested with a simulation only**. This document
@@ -9,10 +9,11 @@ contract must separately follow the revision/copy process in `doc/integration/RE
 
 The host gives `HtmlDesigner` its original Timeline instance and an adapter factory.
 Types live in `packages/designer/src/timeline-adapter.ts`. The revision 1 document
-is archived as `adapter-contract-r1.md`. Existing r1 adapters remain accepted;
+is archived as `adapter-contract-r1.md`; revision 2 is in `adapter-contract-r2.md`.
+Existing r1/r2 adapters remain accepted;
 the declared shared revision is a consumed document reference, not a conformity claim.
 
-Revision 2 adds atomic multi-property edits, explicit equal-value key writes for
+Revision 2 added atomic multi-property edits, explicit equal-value key writes for
 consented source conversions, spatial channels and preview-only gesture sessions.
 It does not add temporal evaluation, a second history or a real Timeline mapping.
 
@@ -84,10 +85,51 @@ supply original `initialValue` and preserve post-commit observations. Object cre
 reversible HTML effects and spatial CSS-value typing still need an agreed real API
 mapping and exact Timeline reference. No such bridge is included in this batch.
 
-Equal-specificity, different-value winners produce a diagnostic and no preview for that
-property. A more specific object still wins. Diagnostics include selectors, property and
-current frame; affected-range analysis and persistent user conflict resolution are future
-work. This batch cannot apply solution A or claim TL-C14 compliance.
+Without the optional r3 conflict capability, equal-specificity, different-value winners
+still produce a current-frame diagnostic and no preview for that overlap/property.
+A more specific object still wins. No full-period analysis is invented for older adapters.
+
+## Explicit conflict capability (r3)
+
+`TimelineAdapter.conflicts` is optional. Its local types live in `conflict-types.ts`.
+`read()` supplies a detached `ConflictSnapshot`: an opaque revision, authoritative
+diagnostics and stored resolutions. A diagnostic includes ID/signature, code, property,
+object IDs/selectors, affected selectors, interval with an explicit exclusive/inclusive
+end, blocking state, explanation and choices. Each choice announces consequences,
+the winning object and **all** initial-key writes it would create.
+
+The Designer does not scan frames to create these intervals. It only routes the chosen
+object's already evaluated contribution among tied winners on the supplied overlap
+and interval. Other properties/elements and higher-specificity objects remain intact.
+Missing, stale or contradictory decisions suspend ambiguous preview.
+
+`resolve({id, signature, choiceId, revision}, isCurrent)` must validate the ticket,
+choice, capabilities and guard before and after host validation callbacks. It commits
+the decision and advertised key writes as **one** command in the existing adapter
+history, or rejects without changes. No-op confirmation adds no history. Undo/redo
+must restore all effects atomically and recheck current capabilities. Existing
+`onChange` supplies synchronous post-commit notifications; there is no second history.
+
+The Designer captures frame, selection/lifecycle epoch, adapter revision and target
+membership/ID/class/inline context. Context changes close the draft; the adapter's
+guard prevents reentrant host callbacks from committing an obsolete confirmation.
+External stylesheet/source changes still require the host coordination described below.
+
+`getConflictState()` returns a detached snapshot; `resolveConflict(id, choiceId)` is
+also available to host UI. Selection may propose a choice but never applies it.
+`resolutionchange` carries complete saved decisions and execute/undo/redo direction,
+only when that project context changes after commit. It does not report an original
+HTML change and never substitutes for `documentchange`/Full XPath tracking.
+
+The exact case59 remains automatic. Solution A is shown only when explicitly offered
+by the adapter and announces its starting key. The simulation includes a choice that
+sets priority **and** creates the initial key; a key alone does not break a priority tie.
+
+This is not the HA4 wire schema. A future real bridge must map `winnerObjectId` to
+HA4's stable layer identity, map each opaque `choiceId` to an explicit winner/prefix
+policy, preserve HA4 context signatures, supply authoritative diagnostics and integrate
+host context effects into shared history through public APIs. HA4 documentation alone
+does not verify that mapping. No real TL-C14 conformity is claimed.
 
 ## Designer observations and document changes
 
@@ -101,6 +143,8 @@ work. This batch cannot apply solution A or claim TL-C14 compliance.
   against the original attributes; undo to the original removes that journal entry.
 - `diagnostic`: a French explanation. Observer exceptions are contained and reported
   through this event so they cannot interrupt a committed command or its undo.
+- `resolutionchange`: complete detached saved resolutions and history direction.
+  No notification for open/cancel, selection, frame changes, no-op or refusal.
 
 The host owns source persistence and coordinates external DOM/CSS mutations. Preview
 restoration touches only driven properties and preserves unrelated live inline styles.
@@ -120,3 +164,8 @@ value before 50 or synthesize a key: the fixture simply contains those recorded 
 Edits change only their exact frame in this fake. Other frames and hold/interpolation
 semantics are not implemented. Tests prove consumer routing, targeting and UI behavior;
 they do not establish TL-C04/TL-C05/TL-C06 temporal engine conformity.
+
+`fixtures/conflict-timeline.ts` supplies fixed contributions at frames
+1/20/49/50/75/100 and an explicit diagnostic schedule. Decisions and advertised writes
+use the same fake command history. It includes a reversible scripted contribution
+change to demonstrate stale signatures, without deriving any temporal behavior.

@@ -4,6 +4,9 @@ import { createScene } from '../fixtures/scene.js';
 import { createRecordedTimeline } from '../fixtures/recorded-timeline.js';
 import { createGeometryScene } from '../fixtures/geometry-scene.js';
 import { createCssScene } from '../fixtures/css-scene.js';
+import { createConflictScene } from '../fixtures/conflict-scene.js';
+import { createConflictTimeline } from '../fixtures/conflict-timeline.js';
+import type { ConflictTimeline, ConflictVariant } from '../fixtures/conflict-timeline.js';
 import type { GeometrySceneVariant } from '../fixtures/geometry-scene.js';
 import './styles.less';
 
@@ -21,15 +24,19 @@ const keyCount = required('#key-count');
 const selectMode = required<HTMLButtonElement>('#select-mode');
 const testMode = required<HTMLButtonElement>('#test-mode');
 let timeline = createRecordedTimeline({ reference: true });
+let conflictTimeline: ConflictTimeline | undefined;
 let designer: HtmlDesigner<typeof timeline>;
 let unsubscribe: (() => void) | undefined;
-function mount(reference: boolean, geometry: 'none' | 'plain' | 'expression' | 'css' = 'none', variant: GeometrySceneVariant = 'basic'): void {
+function mount(reference: boolean, geometry: 'none' | 'plain' | 'expression' | 'css' | 'conflict' = 'none', variant: GeometrySceneVariant = 'basic', conflictVariant: ConflictVariant = 'priority'): void {
   unsubscribe?.(); designer?.dispose();
-  timeline = createRecordedTimeline({ reference });
-  const scene = geometry === 'css' ? createCssScene(document) : geometry === 'none' ? createScene(document) : createGeometryScene(document, geometry === 'expression', variant); sceneHost.replaceChildren(scene);
+  conflictTimeline = geometry === 'conflict' ? createConflictTimeline(conflictVariant) : undefined;
+  timeline = conflictTimeline ?? createRecordedTimeline({ reference });
+  required('#invalidate-conflict').hidden = geometry !== 'conflict' || conflictVariant !== 'stale';
+  const scene = geometry === 'conflict' ? createConflictScene(document) : geometry === 'css' ? createCssScene(document) : geometry === 'none' ? createScene(document) : createGeometryScene(document, geometry === 'expression', variant); sceneHost.replaceChildren(scene);
   designer = new HtmlDesigner({ scene, propertiesContainer, treeContainer, timeline, adapter: instance => instance });
   designer.on('propertychange', change => { log.textContent = `${change.property} : ${change.oldValue} → ${change.newValue} · image ${change.frame}`; });
   designer.on('documentchange', change => { log.textContent = `Document original : ${change.changes.length} modification(s) persistante(s) · ${change.direction === 'undo' ? 'annulation' : change.direction === 'redo' ? 'rétablissement' : 'enregistrement'}`; });
+  designer.on('resolutionchange', change => { log.textContent = `Résolutions du projet : ${change.resolutions.length} · ${change.direction === 'undo' ? 'annulation' : change.direction === 'redo' ? 'rétablissement' : 'enregistrement'}`; });
   designer.on('diagnostic', event => { log.textContent = event.message; });
   designer.on('selectionchange', event => { log.textContent = `${event.elements.length} élément(s) sélectionné(s)${event.objectId ? ' · objet temporel associé' : ' · inspection seule'}`; });
   const update = (): void => {
@@ -39,7 +46,8 @@ function mount(reference: boolean, geometry: 'none' | 'plain' | 'expression' | '
   selectMode.setAttribute('aria-pressed', 'true'); testMode.setAttribute('aria-pressed', 'false');
   if (geometry === 'plain' || geometry === 'expression') designer.selectTarget('#geometry-box');
   if (geometry === 'css') designer.selectTarget('#css-box');
-  log.textContent = geometry === 'css' ? 'Atelier CSS · suggestions et éditeurs · les brouillons ne créent aucune clé.' : geometry !== 'none' ? 'Atelier géométrique · cible #geometry-box fournie par l’hôte · aucune clé avant validation du geste.' : reference ? 'Cas de référence chargé · groupe 50 %, bouton 2 à 80 % dès l’image 1.' : 'Scène sans clés · sélectionnez un élément, modifiez une propriété puis choisissez sa cible.';
+  required('#sample-description').textContent = geometry === 'conflict' ? 'Contributions et diagnostic enregistrés aux images proposées. Le choix de priorité est conservé et annulable ; aucun moteur temporel n’est exécuté ici.' : 'Évaluations enregistrées du cas groupe/ID. L’édition simulée ne modifie que l’image courante. Aucune interpolation n’est exécutée ici.';
+  log.textContent = geometry === 'conflict' ? 'Atelier des conflits · inspectez le diagnostic puis confirmez un choix de priorité.' : geometry === 'css' ? 'Atelier CSS · suggestions et éditeurs · les brouillons ne créent aucune clé.' : geometry !== 'none' ? 'Atelier géométrique · cible #geometry-box fournie par l’hôte · aucune clé avant validation du geste.' : reference ? 'Cas de référence chargé · groupe 50 %, bouton 2 à 80 % dès l’image 1.' : 'Scène sans clés · sélectionnez un élément, modifiez une propriété puis choisissez sa cible.';
 }
 undo.addEventListener('click', () => designer.undo()); redo.addEventListener('click', () => designer.redo());
 frame.addEventListener('change', () => timeline.navigate(Number(frame.value)));
@@ -53,6 +61,11 @@ required('#geometry-scene').addEventListener('click', () => {
 });
 required('#geometry-expression').addEventListener('click', () => mount(false, 'expression'));
 required('#css-scene').addEventListener('click', () => mount(false, 'css'));
+required('#conflict-scene').addEventListener('click', () => {
+  const value = required<HTMLSelectElement>('#conflict-variant').value;
+  mount(false, 'conflict', 'basic', value === 'start-key' || value === 'stale' ? value : 'priority');
+});
+required('#invalidate-conflict').addEventListener('click', () => { conflictTimeline?.invalidateContribution(); });
 selectMode.addEventListener('click', () => { designer.setMode('select'); selectMode.setAttribute('aria-pressed', 'true'); testMode.setAttribute('aria-pressed', 'false'); });
 testMode.addEventListener('click', () => { designer.setMode('test'); selectMode.setAttribute('aria-pressed', 'false'); testMode.setAttribute('aria-pressed', 'true'); log.textContent = 'Mode Test · les interactions du contenu sont actives.'; });
 mount(true);

@@ -63,6 +63,13 @@ ordered transforms, gradients and typography share the same controlled contract.
 The static MDN catalogue covers 671 property names, with structured editors for
 remaining complex grammars and free CSS input for arbitrary values.
 
+Use **Atelier des conflits** beside its scenario selector to inspect a deliberate
+class overlap. Open **Résoudre le conflit**, read the consequences, choose a priority
+and confirm. Undo restores the unresolved state; selection and recorded-frame navigation
+preserve the decision. Other scenarios demonstrate an explicitly announced starting
+key and a decision made stale by changed simulated contributions. These diagnostics
+and samples are simulations; no real Timeline connection is claimed.
+
 ## Consumer API
 
 ```ts
@@ -90,7 +97,7 @@ designer.on('propertychange', ({ property, oldValue, newValue, frame }) => {
 ```
 
 `createHostAdapter` is application-provided; its local proposed interface is documented
-in [HA-ADAPTER-001/r2](doc/implementation/adapter-contract.md). It is **not** an existing
+in [HA-ADAPTER-001/r3](doc/implementation/adapter-contract.md). It is **not** an existing
 JsAnimationTimeline API. No fake is exported from the three libraries. Build outputs
 include ESM, declarations, CSS and the existing GPL-2.0 license. Package names are
 provisional; nothing has been published.
@@ -99,3 +106,4 @@ Read [the production plan](doc/implementation/plan.md),
 [API gaps and batch status](doc/implementation/status.md), and the unchanged
 [product handoff](doc/integration/README.md) before extending the implementation.
 Geometry delivery and support limits are documented in [geometry batch status](doc/implementation/geometry-batch.md).
+Explicit conflict decisions are documented in [batch 3a](doc/implementation/conflict-resolution.md).
