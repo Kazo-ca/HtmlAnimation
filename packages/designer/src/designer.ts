@@ -103,6 +103,7 @@ export class HtmlDesigner<T = unknown> {
     this.cancelGeometryGesture(); this.cancelConflict();
     const snapshot = this.getConflictState(); const diagnostic = snapshot?.diagnostics.find(candidate => candidate.id === id);
     if (!snapshot || !diagnostic) return;
+    this.conflictsUi.render(snapshot);
     this.pendingConflict = { id, signature: diagnostic.signature, revision: snapshot.revision, epoch: this.contextEpoch, targetsCurrent: guardConflictTargets(this.scene, snapshot) };
     this.conflictsUi.open(id, this.adapter.getState().selectedObjectId);
   }

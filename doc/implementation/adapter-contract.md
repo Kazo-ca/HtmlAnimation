@@ -169,3 +169,7 @@ they do not establish TL-C04/TL-C05/TL-C06 temporal engine conformity.
 1/20/49/50/75/100 and an explicit diagnostic schedule. Decisions and advertised writes
 use the same fake command history. It includes a reversible scripted contribution
 change to demonstrate stale signatures, without deriving any temporal behavior.
+The starting-key variant has separate authored pending/accepted prefix samples.
+Before confirmation, the non-overlapping member retains its base before key 50;
+only the explicitly accepted A outcome supplies the recorded prefix value.
+Unrelated properties and subsequent exact-frame edits remain independent.

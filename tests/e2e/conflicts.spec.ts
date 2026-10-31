@@ -62,12 +62,17 @@ test('Escape discards a draft before selecting another node and opening a fresh 
 test('a start-key solution announces its explicit initial key and one undo restores keys and decision', async ({ page }) => {
   await load(page, 'start-key'); const before = await page.locator('#key-count').textContent();
   if (!before) throw new Error('Missing initial key count'); const count = Number.parseInt(before, 10);
+  for (const frame of ['1', '20', '49']) { await page.locator('#frame').selectOption(frame); await opacity(page, 4, '1'); }
+  await page.locator('#frame').selectOption('50'); await opacity(page, 4, '0.75');
+  await page.locator('#frame').selectOption('1');
   await open(page); await dialog(page).getByLabel('Résolution', { exact: true }).selectOption('accent-from-start');
   await expect(dialog(page)).toContainText('1'); await expect(dialog(page)).toContainText('clé');
   await expect(page.locator('#key-count')).toHaveText(before);
   await dialog(page).getByRole('button', { name: 'Appliquer la résolution', exact: true }).click();
   await expect(page.locator('#key-count')).toHaveText(`${count + 1} clés · simulation`); await opacity(page, 1, '0.75');
+  for (const frame of ['20', '49']) { await page.locator('#frame').selectOption(frame); await opacity(page, 4, '0.75'); }
   await page.locator('#undo').click(); await expect(page.locator('#key-count')).toHaveText(before);
+  await opacity(page, 4, '1');
   await page.locator('#redo').click(); await expect(page.locator('#key-count')).toHaveText(`${count + 1} clés · simulation`); await opacity(page, 1, '0.75');
 });
 

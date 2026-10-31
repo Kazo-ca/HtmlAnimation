@@ -87,6 +87,22 @@ function action(container: ParentNode, text: string): HTMLButtonElement {
 }
 
 describe('explicit conflicts through scripted adapter capability', () => {
+  it('reopens using the current diagnostic announcements after an unnotified stale refusal', () => {
+    const { adapter, propertiesContainer, invalidate } = setup();
+    action(propertiesContainer, 'Résoudre le conflit').click();
+    const select = propertiesContainer.querySelector<HTMLSelectElement>('dialog select');
+    if (!select) throw new Error('Missing choice'); select.value = 'other-wins'; select.dispatchEvent(new Event('change'));
+    invalidate(); action(propertiesContainer.querySelector('dialog') ?? propertiesContainer, 'Appliquer la résolution').click();
+    const current = adapter.conflicts.read();
+    vi.spyOn(adapter.conflicts, 'read').mockReturnValue({ ...current, diagnostics: current.diagnostics.map(diagnostic => ({ ...diagnostic, choices: diagnostic.choices.map(choice => ({ ...choice, description: 'NOUVEAU : création d’une clé initiale explicitement annoncée.', createsKeys: [{ objectId: 'other', selector: '.primary', property: 'opacity', value: '0.65', frame: 1 }] })) })) });
+    action(propertiesContainer, 'Résoudre le conflit').click();
+    const reopened = propertiesContainer.querySelector('dialog');
+    if (!reopened) throw new Error('Missing reopened dialog');
+    const choice = reopened.querySelector('select'); if (!choice) throw new Error('Missing reopened choices');
+    choice.value = 'other-wins'; choice.dispatchEvent(new Event('change'));
+    expect(reopened.textContent).toContain('NOUVEAU : création d’une clé initiale');
+    expect(reopened.textContent).toContain('opacity = 0.65');
+  });
   it('exposes authoritative targets and period without changing keys or choosing a winner', () => {
     const { designer, timeline, buttons } = setup({ fromFrame: 20, toFrame: 50, exclusive: true });
     const keys = timeline.getKeys(); const snapshot = designer.getConflictState();
