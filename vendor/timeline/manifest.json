@@ -1,15 +1,17 @@
 {
   "$comment": "vendor/timeline/manifest.json",
   "sourceRepository": "Kazo-ca/JsAnimationTimeline",
-  "reference": "f6de3c592c8c90c35285332f704ef68dfcce0b41",
-  "functionalReference": "f6de3c592c8c90c35285332f704ef68dfcce0b41",
-  "documentaryReference": "f6de3c592c8c90c35285332f704ef68dfcce0b41",
+  "reference": "c340203e50ac84f5fb58e8f9e60dc83f3c2bdf56",
+  "functionalReference": "c340203e50ac84f5fb58e8f9e60dc83f3c2bdf56",
+  "documentaryReference": "c340203e50ac84f5fb58e8f9e60dc83f3c2bdf56",
   "transactionContract": "HA8-TRANSACTIONS/1",
   "contractSha256": "AF74AFE1A6C4F37C621D91A1B47395D570B3D6C41A9B0777F0037AF80250FD9D",
-  "capabilities": { "crossedStopPositionOrder": true, "atomicHostEffects": true },
+  "hostRenderContract": "HA9-HOST-RENDER/1",
+  "hostRenderContractSha256": "D359381B33D6D3863378BD463E313C1AD6070BB80054063168E46F6418C32091",
+  "capabilities": { "crossedStopPositionOrder": true, "atomicHostEffects": true, "preparedHostRendering": true },
   "packages": [
     { "name": "@kazo-ca/timeline-runtime", "archive": "kazo-ca-timeline-runtime-1.0.0.tgz", "bytes": 458115, "sha256": "E8AED4B5126B6335DB78A9ACBBA27BD5B7924192CE11641C32FA9EBD63B6251F" },
-    { "name": "@kazo-ca/timeline-editor", "archive": "kazo-ca-timeline-editor-1.0.0.tgz", "bytes": 1143418, "sha256": "3EACD0734240493740FE5F5095E19CE58F8CD51C84824BFB1EBF6A0D8CA57908" },
+    { "name": "@kazo-ca/timeline-editor", "archive": "kazo-ca-timeline-editor-1.0.0.tgz", "bytes": 1157613, "sha256": "9C816308D0AB97E6FF0CB94FE56101379C01967A3C95D53FFCC8140221FE96C4" },
     { "name": "@kazo-ca/timeline-export-css", "archive": "kazo-ca-timeline-export-css-1.0.0.tgz", "bytes": 74077, "sha256": "B745CA1C740B926D29C6678DD682DE546D141A5E507ABC7DFA1012D66FCF93BE" }
   ]
 }

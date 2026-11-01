@@ -1,21 +1,28 @@
 // integration/timeline-real.ts
 import { CommandRefusedError, createCommand, createEditor } from '@kazo-ca/timeline-editor';
-import type { EditorPlugin, EditorTransactionResult, IEditor, IEditorTransactionRequest, ICommand, PropertyTimelineOperation } from '@kazo-ca/timeline-editor';
-import { composeHtmlDeclarations, createHtmlInspectionStage, createManualClock } from '@kazo-ca/timeline-runtime';
-import type { HtmlPropertyBinding, IHtmlAnimationContext, IHtmlResolvedBinding, IHtmlStage, ILayer, ITimelineDocument, TimelinePropertyValue, TimelinePropertyValues } from '@kazo-ca/timeline-runtime';
+import type { EditorPlugin, EditorTransactionResult, IEditor, IEditorTransactionRequest, IHostRenderCandidate, ICommand, PropertyTimelineOperation } from '@kazo-ca/timeline-editor';
+import { composeHtmlDeclarations, createHtmlInspectionStage, createManualClock, createPropertyRegistry, prepareHtmlResolution } from '@kazo-ca/timeline-runtime';
+import type { HtmlPropertyBinding, IHtmlAnimationContext, IHtmlGradientDefinition, IHtmlResolvedBinding, IHtmlResolvedLayer, IHtmlResolvedProperty, IHtmlStage, ILayer, ITimelineDocument, LayerNode, PropertyRegistry, TimelinePropertyValue, TimelinePropertyValues } from '@kazo-ca/timeline-runtime';
 import { applyGradientEdits, cloneGradientDefinitions, readGradientComponent } from '@kazo-ca/css-properties';
 import type { GradientComponent, GradientDefinition, GradientEdit, GradientType, GradientValue } from '@kazo-ca/css-properties';
 import { gradientFixtureDefinition } from '../fixtures/gradient-scene.js';
 import type { GradientMutationResult, GradientRequest, GradientSnapshot, GradientTrack } from '../packages/designer/src/gradient-types.js';
 import type { MutationResult, PropertyWrite, TimelineAdapter, TimelineReason, TimelineState } from '../packages/designer/src/timeline-adapter.js';
+import { DomPreviewOwner } from '../packages/designer/src/dom-preview.js';
+import type { ElementProjection } from '../packages/designer/src/dom-preview.js';
 import artifactManifest from '../vendor/timeline/manifest.json';
 
 export interface RealGradientHost {
     readonly editor: IEditor;
     readonly adapter: TimelineAdapter;
     readonly stage: RealGradientStageMetadata;
+    readonly previewOwner: DomPreviewOwner;
+    /** Trusted prepared host effects only: switch ownership after installing source DOM. */
+    installPreviewOwner(owner: DomPreviewOwner): void;
+    executeTransaction(request: IEditorTransactionRequest): MutationResult;
     navigate(frame: number): void;
     advance(milliseconds: number): void;
+    canCaptureProject(): boolean;
     dispose(): void;
 }
 /** Context changes participate in transactions; callers only receive metadata access. */
@@ -23,6 +30,11 @@ export interface RealGradientStageMetadata extends Pick<IHtmlStage, 'id' | 'mode
     readonly targets: Pick<IHtmlStage['targets'], 'list' | 'describe'>;
 }
 export const REAL_TIMELINE_REFERENCE = artifactManifest.reference;
+/** Private genuine-package fixtures; models and context remain validated by Timeline. */
+export interface RealGradientHostOptions {
+    readonly document?: ITimelineDocument;
+    readonly context?: IHtmlAnimationContext;
+}
 const layerId = 'gradientObject';
 const selector = '#gradient-box';
 const peerSelector = '#gradient-peer';
@@ -70,30 +82,67 @@ function initialContext(type: GradientType): IHtmlAnimationContext {
     const channels = definitions.flatMap(gradient => [...geometry.map(component => ({ gradientId: gradient.id, component })), ...gradient.stops.flatMap(stop => stopComponents.map(component => ({ gradientId: gradient.id, stopId: stop.id, component })))]);
     return { version: 1, gradients: { [layerId]: definitions }, bindings: { [layerId]: Object.fromEntries(channels.map((channel, index) => [`gradientChannel${index + 1}`, binding(channel)])) } };
 }
-/** This host maps only background-image and opacity. Metadata reads suspend those previews. */
-function sourceReader(scene: HTMLElement): <T>(read: () => T) => T {
-    const nodes = [scene, ...scene.querySelectorAll<HTMLElement>('*')];
-    const sources = nodes.map(element => ({ element, absent: !element.hasAttribute('style'), properties: ['background-image', 'opacity'].map(name => ({ name, value: element.style.getPropertyValue(name), priority: element.style.getPropertyPriority(name) })) }));
-    return <T>(read: () => T): T => {
-        const previews = sources.map(({ element }) => ({ element, style: element.getAttribute('style') }));
-        try {
-            for (const source of sources) {
-                for (const property of source.properties) {
-                    if (source.element.style.getPropertyPriority(property.name) !== 'important') continue;
-                    if (property.value) source.element.style.setProperty(property.name, property.value, property.priority);
-                    else source.element.style.removeProperty(property.name);
-                }
-                if (source.absent && !source.element.style.length) source.element.removeAttribute('style');
-            }
-            return read();
-        } finally {
-            // HA8 calls this only for synchronous pure reads, never host-effect application.
-            for (const { element, style } of previews) {
-                if (element.getAttribute('style') === style) continue;
-                if (style === null) element.removeAttribute('style'); else element.setAttribute('style', style);
+function layers(nodes: readonly LayerNode[]): readonly ILayer[] {
+    return nodes.flatMap(node => node.type === 'layer' ? [node] : layers(node.children));
+}
+/** Runtime resolution, never row order or locally recomputed selector specificity. */
+function candidateProjection(candidate: IHostRenderCandidate, stage: IHtmlStage, registry: PropertyRegistry): readonly ElementProjection[] {
+    const context = candidate.htmlContexts.find(entry => entry.stageId === stage.id)?.context;
+    if (!context) throw new Error('Le candidat de rendu ne fournit pas son contexte HTML.');
+    const resolvedLayers: readonly IHtmlResolvedLayer[] = layers(candidate.document.layers).flatMap(layer => {
+        const sample = candidate.sample.layer(layer.id);
+        if (!sample?.target || !sample.editorVisible || !stage.accepts(sample.target)) return [];
+        return [{ layerId: layer.id, layer: { ...layer, visible: sample.editorVisible }, target: sample.target, elements: stage.resolveElements(sample.target) }];
+    });
+    const plan = prepareHtmlResolution(candidate.document, resolvedLayers, context, registry);
+    const states = new Map<Element, IHtmlResolvedProperty[]>(plan.evaluate(candidate.time.frame).map(state => [state.element, [...state.properties]]));
+    // A definition without a recorded component is a structural base only. It never
+    // replaces a resolved background or revives a destination omitted by a diagnostic.
+    const bases = new Map<Element, IHtmlGradientDefinition>();
+    for (const entry of resolvedLayers) {
+        const bindings = Object.entries(context.bindings?.[entry.layerId] ?? {});
+        const sampled = candidate.sample.layer(entry.layerId)?.propertyValues ?? {};
+        for (const gradient of context.gradients?.[entry.layerId] ?? []) {
+            if (bindings.some(([property, binding]) => binding.kind === 'gradient' && binding.gradientId === gradient.id && (property in sampled || entry.layer.propertyTimelines?.[property] !== undefined))) continue;
+            if (plan.diagnostics.some(diagnostic => diagnostic.blocking && diagnostic.layerIds.includes(entry.layerId) && candidate.time.frame >= diagnostic.fromFrame && candidate.time.frame <= diagnostic.toFrame)) continue;
+            for (const element of entry.elements) {
+                const properties = states.get(element) ?? [];
+                if (properties.some(property => property.binding.binding.kind === 'gradient' || property.binding.binding.kind === 'style' && ['background', 'background-image'].includes(property.binding.binding.cssName))) continue;
+                if (bases.has(element)) throw new Error('Plusieurs bases structurelles de fond demandent une résolution explicite.');
+                bases.set(element, gradient);
+                states.set(element, properties);
             }
         }
-    };
+    }
+    return [...states].map(([element, properties]) => {
+        if (!(element instanceof HTMLElement)) throw new Error('Ce propriétaire d’aperçu exige une cible HTML.');
+        const values: Record<string, TimelinePropertyValue> = {};
+        const bindings: Record<string, IHtmlResolvedBinding> = {};
+        const gradients = new Map<string, IHtmlGradientDefinition>();
+        const addGradient = (gradient: IHtmlGradientDefinition): void => {
+            const previous = gradients.get(gradient.id);
+            if (previous && JSON.stringify(previous) !== JSON.stringify(gradient)) throw new Error('La composition résolue utilise des définitions de dégradé incompatibles.');
+            gradients.set(gradient.id, gradient);
+        };
+        for (const [index, property] of properties.entries()) {
+            const name = `renderChannel${index + 1}`;
+            bindings[name] = property.binding; values[name] = property.value;
+            const binding = property.binding.binding;
+            if (binding.kind !== 'gradient') continue;
+            const gradient = context.gradients?.[property.layerId]?.find(gradient => gradient.id === binding.gradientId);
+            if (!gradient) throw new Error('Définition du dégradé résolu indisponible.');
+            addGradient(gradient);
+        }
+        const base = bases.get(element);
+        if (base) {
+            addGradient(base);
+            bindings.structuralBase = { binding: { kind: 'gradient', gradientId: base.id, component: 'type' }, valueKind: 'text' };
+            values.structuralBase = { kind: 'text', value: base.type };
+        }
+        const result = composeHtmlDeclarations(element, values, bindings, [...gradients.values()]);
+        if (result.diagnostics.length) throw new Error(result.diagnostics.map(diagnostic => diagnostic.reason).join(' '));
+        return { element, declarations: result.declarations };
+    });
 }
 /** No lifecycle decorator: createEditor receives the exact public inspection participant. */
 function metadata(stage: IHtmlStage): RealGradientStageMetadata {
@@ -115,17 +164,28 @@ function peerCommand(): ICommand {
     }, document => ({ ...document, layers: document.layers.filter(layer => layer.id !== peerId) }));
 }
 
-/** Private genuine HA8 bridge; unsupported CSS and r3 geometry remain explicit refusals. */
-export function createRealGradientHost(editorContainer: HTMLElement, scene: HTMLElement, type: GradientType = 'linear'): RealGradientHost {
+/** Private genuine HA9 bridge; unsupported CSS and r3 geometry remain explicit refusals. */
+export function createRealGradientHost(editorContainer: HTMLElement, scene: HTMLElement, type: GradientType = 'linear', options: RealGradientHostOptions = {}): RealGradientHost {
     const element = scene.querySelector<HTMLElement>(selector);
     if (!element) throw new Error('La cible du dégradé réel est introuvable.');
+    let owner = new DomPreviewOwner(scene);
     const clock = createManualClock();
-    const stage = createHtmlInspectionStage({ root: scene, exclude: editorContainer, animationContext: initialContext(type), preserveSource: sourceReader(scene) });
-    const data: ITimelineDocument = { version: '2.0.0', settings: { fps: 24, totalFrames: 100 }, layers: [{ id: layerId, type: 'layer', name: selector, target: { selector }, spans: [] }] };
+    const stage = createHtmlInspectionStage({ root: scene, exclude: editorContainer, animationContext: options.context ?? initialContext(type), preserveSource: read => owner.withSource(read) });
+    const data: ITimelineDocument = options.document ?? { version: '2.0.0', settings: { fps: 24, totalFrames: 100 }, layers: [{ id: layerId, type: 'layer', name: selector, target: { selector }, spans: [] }] };
+    const registry = createPropertyRegistry();
+    const renderRegistry = registry.clone();
+    for (const descriptor of stage.properties ?? []) renderRegistry.register(descriptor);
     let isGrouping = (): boolean => false;
     // The public plugin command facade exposes group state; IEditor itself does not.
     const groupMonitor: EditorPlugin = { id: 'designer.groupMonitor', dependencies: [], init: context => { isGrouping = () => context.commands.isGrouping; }, destroy: () => { isGrouping = () => false; } };
-    const editor = createEditor(editorContainer, { data, stage, clock, plugins: [groupMonitor] });
+    const editor = createEditor(editorContainer, { data, stage, clock, registry, plugins: [groupMonitor], hostRenderer: {
+        prepare(candidate) {
+            if (candidate.cause === 'destroy') return owner.prepareRestore();
+            const projection = owner.withSource(() => candidateProjection(candidate, stage, renderRegistry));
+            return owner.prepare(projection);
+        },
+    } });
+    try {
     const selection = editor.getService('layers.selection');
     if (!selection) { editor.destroy(); throw new Error('Le service de sélection Timeline n’est pas disponible.'); }
     let disposed = false;
@@ -142,7 +202,7 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         if (stop.color.a !== 1) throw new Error('La couleur du point doit être opaque ; utilisez sa piste d’opacité.');
         return { ...stop, color: { ...stop.color, a: 1 } };
     }) })));
-    const values = (id = layerId): TimelinePropertyValues => editor.sample(editor.playback.frame).layer(id)?.propertyValues ?? {};
+    const values = (id = layerId): TimelinePropertyValues => editor.sample(editor.playback.time.frame).layer(id)?.propertyValues ?? {};
     const evaluation = (source = values(), context = stage.animationContext): readonly GradientDefinition[] => applyGradientEdits(definitions(context), descriptors(context).flatMap(descriptor => {
         const value = source[descriptor.property];
         return value ? [{ gradientId: descriptor.gradientId, ...(descriptor.stopId ? { stopId: descriptor.stopId } : {}), component: descriptor.component, value: untyped(value) }] : [];
@@ -154,7 +214,7 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         const represented = new Set(bindings.flatMap(([property, candidate]) => candidate.kind === 'gradient' && property in source ? [candidate.gradientId] : []));
         let structural: readonly GradientDefinition[] | undefined;
         for (const [property, candidate] of bindings) {
-            resolved[property] = { binding: candidate, valueKind: candidate.kind === 'gradient' ? kind(candidate.component) : 'number' };
+            resolved[property] = { binding: candidate, valueKind: candidate.kind === 'gradient' ? kind(candidate.component) : source[property]?.kind ?? 'number' };
             // One static component activates public composition for an unrecorded gradient.
             // The runtime receives its full definition and every genuine sampled channel.
             if (candidate.kind !== 'gradient' || represented.has(candidate.gradientId)) continue;
@@ -311,7 +371,7 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         return { ...(existing ? {} : { commands: [peerCommand()] }), htmlContext: { stageId: stage.id, context }, properties: [{ kind: 'set', layerId: peerId, property: 'opacity', frame: write.frame, value: { kind: 'number', value }, initialValue: inspection.initialValue }] };
     };
     const adapter: TimelineAdapter = {
-        kind: 'real', contractRevision: 'HA-TL-001/r2',
+        kind: 'real', contractRevision: 'HA-TL-001/r2', get preview() { return owner; },
         getState: () => disposed ? { ...lastState, canUndo: false, canRedo: false } : getState(),
         gradients: {
             read,
@@ -320,7 +380,9 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
                     validate(request);
                     if (request.intent.kind !== 'edit') throw new Error('L’aperçu structurel attend la validation de la commande.');
                     const source = proposedValues(request.intent.changes);
-                    return { status: 'composed', gradients: evaluation(source), declarations: declarations(element, source, layerId) };
+                    const target = scene.querySelector<HTMLElement>(selector);
+                    if (!target) throw new Error('La cible actuelle du dégradé est introuvable.');
+                    return { status: 'composed', gradients: evaluation(source), declarations: declarations(target, source, layerId) };
                 } catch (error) { return { status: 'rejected', message: error instanceof Error ? error.message : 'Composition réelle indisponible.' }; }
             },
             execute(request, isCurrent): GradientMutationResult {
@@ -352,12 +414,23 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
     subscriptions.push(
         editor.on('transaction:changed', event => { receivedTransaction = true; emit(event.phase === 'preview' ? 'preview' : event.phase === 'cancel' ? 'cancel' : event.cause === 'undo' || event.cause === 'redo' ? event.cause : 'execute'); }),
         editor.on('document:changed', event => { if (!running) emit(event.cause === 'group-cancel' ? 'cancel' : isGrouping() ? 'preview' : event.cause === 'undo' || event.cause === 'redo' ? event.cause : 'execute'); }),
+        editor.on('document:loaded', () => emit('execute')),
         editor.on('layers:selectionChanged', () => emit('selection')),
         editor.onFrame(sample => { if (sample.time.frame !== lastFrame) { lastFrame = sample.time.frame; emit('frame'); } }),
     );
-    return { editor, adapter, stage: metadata(stage),
+    return { editor, adapter, stage: metadata(stage), get previewOwner() { return owner; },
+        installPreviewOwner(next) { owner = next; },
+        executeTransaction: transact,
         navigate(frame) { if (!disposed) { editor.playback.seek(frame); clock.advance(0); } },
         advance(milliseconds) { if (!disposed) clock.advance(milliseconds); },
-        dispose() { if (disposed) return; lastState = getState(); disposed = true; for (const unsubscribe of subscriptions) unsubscribe(); listeners.clear(); editor.destroy(); },
+        // Read-only snapshots are allowed during terminal observations, but never
+        // while a group is provisional or compensation has become uncertain.
+        canCaptureProject() { return !disposed && !editor.isDestroyed && faultMessage() === undefined && !isGrouping(); },
+        dispose() { if (disposed) return; const snapshot = getState(); editor.destroy(); lastState = snapshot; disposed = true; for (const unsubscribe of subscriptions) unsubscribe(); listeners.clear(); },
     };
+    } catch (error) {
+        try { editor.destroy(); }
+        catch (cleanup) { throw new AggregateError([error, cleanup], 'L’initialisation et la restauration de l’éditeur ont échoué.', { cause: cleanup }); }
+        throw error;
+    }
 }

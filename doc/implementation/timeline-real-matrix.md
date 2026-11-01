@@ -1,10 +1,37 @@
 <!-- doc/implementation/timeline-real-matrix.md -->
 # Real Timeline verification — Designer consumer matrix
 
-Reference HA-REAL-MATRIX-001/r2, 2026-10-31. This is a consumer evidence record and
+Reference HA-REAL-MATRIX-001/r3, 2026-10-31. This is a consumer evidence record and
 API request; it does not amend HA-TL-001/r2 or claim a delivered shared signature.
 
-## Current installed HA8 reference — consumer verification ongoing
+## Current installed HA9 reference — consumer verification ongoing
+
+Functional reference `c340203e50ac84f5fb58e8f9e60dc83f3c2bdf56`, contracts
+`HA8-TRANSACTIONS/1` and `HA9-HOST-RENDER/1`. The three archives are dev-only local
+dependencies installed together. `check:timeline-artifacts` verifies their size/hash,
+installed public manifests/ESM and copied contract checksums. Runtime is deduplicated.
+
+The unchanged backend observer regression now passes: execute/undo/redo through the
+Designer and directly through Timeline expose the committed DOM, context and history.
+The early-created shared preview owner replaces notification-time Designer rendering.
+Owner compensation, initialization, seek, destruction retry, native loads and the exact
+four-button group/ID reference have targeted genuine tests. Two new RED/GREEN tests cover
+native color/text reading and cleanup after bridge bootstrap failure.
+
+Two genuine tests still fail on the public reason of refused backend undo/redo. HA9
+discards `command:refused` while cancelling its atomic notification batch; the bridge
+therefore has only its generic French refusal. The precise expected reasons remain in
+the tests. This is not a full-green integration checkpoint. HA10 archives have been
+received separately but are not active here and do not fix those two cases.
+
+General CSS/target creation, conflict A and source-relative r3 spatial mapping remain
+separate work. Shared spatial fields/handles are explicitly disabled meanwhile.
+Project codec/capture/opening verification is recorded independently in
+`editable-project.md`; it is not implied by an owner-render test.
+
+The previous matrix is preserved in `timeline-real-matrix-r2.md`.
+
+## Previous installed HA8 reference — historical evidence
 
 Functional reference `f6de3c592c8c90c35285332f704ef68dfcce0b41`,
 contract `HA8-TRANSACTIONS/1`. The three immutable archives are installed together;

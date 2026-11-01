@@ -14,7 +14,7 @@ The functional batches provide inspection, synchronized selection, selection/tes
 explicit first-edit targeting, property edits, shared undo/redo, original ID/class change tracking
 with Full XPath, and temporary style preview. The main demo uses clearly labelled
 recorded simulations. A separate genuine package workshop is available;
-full real integration remains pending the atomic host transaction contract.
+full real integration remains in progress against pinned local Timeline archives.
 Batch 2 adds move, dimensions, rotation, scale, compensated pivot, grid/alignment aids,
 pointer/keyboard interaction and one undo per multi-property gesture.
 
@@ -79,12 +79,12 @@ history are demonstrated with the simulation. Crossed points preserve their IDs 
 render sorted by evaluated position.
 
 The [genuine package workshop](http://127.0.0.1:43127/timeline-real.html) uses the three
-immutable HA8 archives recorded in `vendor/timeline/manifest.json`. It exercises runtime
+immutable HA9 archives recorded in `vendor/timeline/manifest.json`. It exercises runtime
 hold, direct seeks, component gestures, real structural point addition, first opacity
 object creation and ID/class effects with shared history. General CSS and the existing
-r3 element-geometry mapping remain explicit limits. A genuine backend observer test
-still exposes the old Designer preview before its notification refresh; the delivered
-atomic document/context/effect API does not by itself complete prepared host rendering.
+r3 element-geometry mapping remain explicit limits. Prepared host rendering now exposes
+the committed preview to backend observers before notifications. Two genuine refusal
+tests still await the upstream public undo/redo reason fix; no complete conformity is claimed.
 See [the real evidence matrix](doc/implementation/timeline-real-matrix.md) for limits.
 
 ## Consumer API

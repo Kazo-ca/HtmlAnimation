@@ -28,7 +28,7 @@ function setup(type: GradientType = 'linear'): {
     const source = element.getAttribute('style');
     const host = createRealGradientHost(editorContainer, scene, type);
     cleanup.push(() => host.dispose());
-    expect(element.getAttribute('style')).toBe(source);
+    expect(host.adapter.preview?.withSource(() => element.getAttribute('style'))).toBe(source);
     const designer = new HtmlDesigner({ scene, propertiesContainer, treeContainer, timeline: host.editor, adapter: () => host.adapter });
     cleanup.push(() => designer.dispose());
     designer.selectTarget('#gradient-box');
@@ -111,22 +111,26 @@ describe('Designer with genuine installed Timeline packages', () => {
         designer.undo();
         expect(Object.keys(tracks(host))).toHaveLength(0);
     });
-    it('keeps the committed multi-write receipt when a terminal backend observer changes its frame', () => {
+    it('refuses terminal backend seeks synchronously while keeping the committed multi-write receipt', () => {
         const { host, designer } = setup('radial');
         host.navigate(50);
         const before = host.editor.document;
         const accepted = vi.fn();
         designer.on('propertychange', accepted);
-        const unsubscribe = host.editor.on('property:changed', event => { if (event.cause === 'execute')
-            host.navigate(20); });
+        const refused: unknown[] = [];
+        const unsubscribe = host.editor.on('property:changed', event => { if (event.cause === 'execute') {
+            try { host.navigate(20); } catch (error) { refused.push(error); }
+        } });
         expect(designer.editGradient([{ gradientId: 'main', component: 'centerX', value: 35 }, { gradientId: 'main', component: 'centerY', value: 65 }]).status).toBe('changed');
         expect(host.editor.document).not.toBe(before);
         expect(accepted).toHaveBeenCalledTimes(2);
         expect(accepted).toHaveBeenCalledWith(expect.objectContaining({ newValue: '35', frame: 50 }));
         expect(host.editor.canUndo).toBe(true);
-        expect(host.editor.playback.frame).toBe(20);
-        expect(current(designer).centerX).toBe(50);
+        expect(refused).toHaveLength(2);
+        expect(host.editor.playback.frame).toBe(50);
+        expect(current(designer).centerX).toBe(35);
         unsubscribe();
+        host.navigate(20); expect(current(designer).centerX).toBe(50);
         designer.undo();
         expect(host.editor.document).toEqual(before);
     });
@@ -201,18 +205,22 @@ describe('Designer with genuine installed Timeline packages', () => {
         expect(host.adapter.undo().status).toBe('changed');
         expect(Object.keys(tracks(host))).toHaveLength(0);
     });
-    it('returns a committed receipt even when a read-only observer seeks to another frame', () => {
+    it('keeps the receipt frame when an adapter observer seek is refused and allows a later retry', () => {
         const { host, designer } = setup();
         host.navigate(50);
         const property = vi.fn();
         designer.on('propertychange', property);
-        const unsubscribe = host.adapter.onChange(reason => { if (reason === 'execute')
-            host.navigate(20); });
+        const refused: unknown[] = [];
+        const unsubscribe = host.adapter.onChange(reason => { if (reason === 'execute') {
+            try { host.navigate(20); } catch (error) { refused.push(error); }
+        } });
         expect(designer.editGradient([{ gradientId: 'main', component: 'angle', value: 35 }]).status).toBe('changed');
-        expect(host.editor.playback.frame).toBe(20);
-        expect(current(designer).angle).toBe(90);
+        expect(refused).toHaveLength(1);
+        expect(host.editor.playback.frame).toBe(50);
+        expect(current(designer).angle).toBe(35);
         expect(property).toHaveBeenCalledWith(expect.objectContaining({ newValue: '35', frame: 50 }));
         unsubscribe();
+        host.navigate(20); expect(current(designer).angle).toBe(90);
     });
     it('checks crossed-point rendering against the genuine archive capability without replacing its renderer', () => {
         const { host, designer, element } = setup();

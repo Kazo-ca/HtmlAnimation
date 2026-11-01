@@ -1,8 +1,8 @@
 <!-- doc/implementation/adapter-contract.md -->
-# HA-ADAPTER-001 — local consumer boundary, revision 5
+# HA-ADAPTER-001 — local consumer boundary, revision 6
 
 Date: 2026-10-31. Consumes HA-TL-001/r2 and HA-DESIGN-001/r1 unchanged.
-Status: **local proposal; simulations plus an in-progress private HA8 bridge**. This document
+Status: **local proposal; simulations plus an in-progress private HA9 bridge**. This document
 does not amend a shared Timeline guarantee or claim a published Timeline signature.
 Changes to this boundary require a revision and migration notes. Changes to the shared
 contract must separately follow the revision/copy process in `doc/integration/README.md`.
@@ -10,7 +10,8 @@ contract must separately follow the revision/copy process in `doc/integration/RE
 The host gives `HtmlDesigner` its original Timeline instance and an adapter factory.
 Types live in `packages/designer/src/timeline-adapter.ts`. The revision 1 document
 is archived as `adapter-contract-r1.md`; revisions 2 and 3 are in
-`adapter-contract-r2.md`, `adapter-contract-r3.md` and `adapter-contract-r4.md`.
+`adapter-contract-r2.md`, `adapter-contract-r3.md`, `adapter-contract-r4.md` and
+`adapter-contract-r5.md`.
 Existing r1/r2 adapters remain accepted;
 the declared shared revision is a consumed document reference, not a conformity claim.
 
@@ -200,6 +201,28 @@ availability, expected raw value and ID uniqueness; it does not overwrite an ext
 source change. Undo/redo use the actual direction, original XPath and one shared backend
 history. Failed preparation preserves the earlier redo stack. No second history or
 `load(document)` replacement is introduced.
+
+## Prepared shared preview ownership (r6)
+
+Optional `TimelineAdapter.preview` supplies a `DomPreviewOwner` constructed over the
+same scene before the native Editor is initialized. The owner captures source CSS and
+original XPath before any evaluated preview. The genuine HA9 `hostRenderer` prepares
+and applies the authoritative per-element projection inside Timeline's atomic boundary.
+The Designer observes that committed projection; synchronous backend observers therefore
+see the committed DOM without relying on a later Designer callback to render it.
+
+`prepare`, `prepareDraft` and `prepareRestore` capture exact compensation state and
+return the r5 prepared-effect shape. `withSource` temporarily suspends owned declarations
+for trusted synchronous read-only source inspection, then reinstates the exact preview.
+Element identity is retained; declaration containers are detached. Explicit gesture drafts
+share this owner and do not create keys, journal entries or accepted-edit events.
+Disposing the Designer removes its local draft; destroying the native host restores source.
+
+An adapter without `preview` retains the earlier Designer-owned projection. The optional
+owner imports no Timeline implementation. Shared-owner r3 spatial controls are explicitly
+unavailable until their source-relative mapping is delivered and verified; they are not
+silently projected as native absolute properties. This revision does not certify project
+opening, all native CSS/group mappings or full Timeline conformity.
 
 ## Designer observations and document changes
 

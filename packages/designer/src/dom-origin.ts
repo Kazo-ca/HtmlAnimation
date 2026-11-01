@@ -3,6 +3,15 @@ import { authoredStyles } from './authored-styles.js';
 import { getCssPropertyMetadata, getCssPropertyNames } from '@kazo-ca/css-properties';
 interface Origin { readonly values: ReadonlyMap<string, string>; readonly properties: readonly string[]; readonly authored: ReadonlyMap<string, string>; readonly signatures: Map<string, string>; readonly xpath: string }
 interface Preview { readonly original: string | null; current: string | null; readonly properties: Map<string, { readonly value: string; readonly priority: string; readonly preview: string }> }
+/** Internal transactional capture; ordinary restore() deliberately remains conditional. */
+export interface DomPreviewSnapshot {
+  readonly styles: readonly { readonly element: HTMLElement; readonly style: string | null }[];
+  readonly previews: ReadonlyMap<HTMLElement, Preview>;
+}
+
+function copyPreviews(previews: ReadonlyMap<HTMLElement, Preview>): Map<HTMLElement, Preview> {
+  return new Map([...previews].map(([element, preview]) => [element, { ...preview, properties: new Map([...preview.properties].map(([name, value]) => [name, { ...value }])) }]));
+}
 
 export function fullXPath(element: Element): string {
   const parent = element.parentElement;
@@ -50,6 +59,20 @@ export class DomOrigin {
     const value = parts(property, new Set()); origin?.signatures.set(property, value); return value;
   }
   public xpath(element: HTMLElement): string { return this.origins.get(element)?.xpath ?? ''; }
+  public capturePreview(elements: readonly HTMLElement[] = []): DomPreviewSnapshot {
+    const affected = new Set([...this.previews.keys(), ...elements]);
+    for (const element of affected) if (!this.origins.has(element)) throw new Error('La cible de l’aperçu ne fait pas partie du document capturé.');
+    return { styles: [...affected].map(element => ({ element, style: element.getAttribute('style') })), previews: copyPreviews(this.previews) };
+  }
+  /** Exact compensation after partial writes, distinct from protecting live external writes. */
+  public restorePreview(snapshot: DomPreviewSnapshot): void {
+    for (const { element, style } of snapshot.styles) {
+      if (element.getAttribute('style') === style) continue;
+      if (style === null) element.removeAttribute('style'); else element.setAttribute('style', style);
+    }
+    this.previews.clear();
+    for (const [element, preview] of copyPreviews(snapshot.previews)) this.previews.set(element, preview);
+  }
   public applyPreview(element: HTMLElement, property: string, value: string): void {
     const preview = this.previews.get(element) ?? { original: element.getAttribute('style'), current: null, properties: new Map() };
     const original = preview.properties.get(property) ?? { value: element.style.getPropertyValue(property), priority: element.style.getPropertyPriority(property), preview: value };

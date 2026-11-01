@@ -1,7 +1,8 @@
 // packages/designer/src/timeline-adapter.ts
 import type { ConflictCapability } from './conflict-types.js';
 import type { GradientCapability } from './gradient-types.js';
-/** Local consumer boundary HA-ADAPTER-001/r5; not a published Timeline API. */
+import type { DomPreviewOwner } from './dom-preview.js';
+/** Local consumer boundary HA-ADAPTER-001/r6; not a published Timeline API. */
 export type MutationResult = { readonly status: 'changed' | 'unchanged' } | { readonly status: 'rejected' | 'faulted'; readonly message: string };
 export interface TimelineObject { readonly id: string; readonly selector: string }
 export type EvaluatedValues = Readonly<Record<string, Readonly<Record<string, string>>>>;
@@ -42,6 +43,8 @@ export interface TimelineAdapter {
   readonly contractRevision: 'HA-TL-001/r1' | 'HA-TL-001/r2';
   readonly conflicts?: ConflictCapability;
   readonly gradients?: GradientCapability;
+  /** Shared writer created before Editor; committed rendering precedes every host observation. */
+  readonly preview?: DomPreviewOwner;
   getState(): TimelineState;
   execute(label: string, writes: readonly PropertyWrite[], effect?: ReversibleEffect): MutationResult;
   undo(): MutationResult;

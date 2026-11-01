@@ -1,6 +1,9 @@
 <!-- doc/implementation/ha8-transactions.md -->
 # Atomic host transactions — consumer integration
 
+Historical HA8 checkpoint. The active HA9 prepared-render follow-up and its remaining
+two public refusal-reason regressions are recorded in `timeline-real-matrix.md`.
+
 Branch `codex/ha8-transactions`, based on the unmerged gradient PR #6.
 Consumes `HA8-TRANSACTIONS/1` from the immutable provider reference
 `f6de3c592c8c90c35285332f704ef68dfcce0b41`. The four original handoff documents
