@@ -79,7 +79,7 @@ test('genuine radial center gesture previews and commits two keys as one undo ac
 test('genuine structural addition is available while the unmapped spatial model is visibly refused', async ({ page }) => {
   await load(page); await expect(panel(page).getByRole('button', { name: 'Ajouter un point', exact: true })).toBeEnabled();
   const rotation = page.locator('#real-properties input[data-property="rotation"]'); await expect(rotation).toBeDisabled();
-  await expect(page.locator('#real-properties .CssPropertiesPanel')).toContainText('r3'); expect(await keys(page)).toBe(0);
+  await expect(page.locator('#real-properties .CssPropertiesPanel')).toContainText('Les poignées géométriques ne sont pas encore disponibles avec l’aperçu partagé.'); expect(await keys(page)).toBe(0);
   const hasTimelineService = await page.locator('#real-timeline .JsTimeLine').count(); expect(hasTimelineService).toBeGreaterThan(0);
 });
 

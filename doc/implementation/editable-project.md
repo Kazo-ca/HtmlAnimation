@@ -96,6 +96,35 @@ revision `source-v1`. Unknown sources remain valid files but cannot open in this
 The selected file does not replace the current project until **Ouvrir le projet** is used.
 The simulation workshop remains separate.
 
+`fixtures/gradient-workshop-conic-project.json` was captured through the genuine HA9B
+Chromium save flow. Its sole angle key at frame 50, native context and peer-ID journal
+are retained as a reusable download in the demo. The French chooser/filename use host
+UI text rather than depending on the browser's native file-input language.
+
+## Executed consumer validation
+
+- Reproducible offline `npm ci --ignore-scripts --no-audit --cache .npm-cache`: passed.
+- Lint, typecheck, three package builds, both demo builds, artifact/contract checks
+  and the offline packed-package consumer: passed.
+- Complete coverage run: 693 tests / 36 files passed, `--maxWorkers=1`, no filtered
+  regression. Coverage: 92.88% statements, 82.86% branches, 96.71% functions,
+  98.44% lines. Native opening includes 26 genuine cases; simulation tests are separate.
+- Initial full browser run at `8780bb9`: 259 passed, five failed (three obsolete `r3`
+  text expectations and two pointer clicks intercepted by a gradient center handle).
+  The fix checks the actual French unavailability reason and selects through the
+  real structure tree. Disabled-state/key assertions, retries and deadlines are unchanged.
+- Corrected targeted runs: three spatial-control checks and 15 file journeys passed
+  across Chromium/Firefox/WebKit, `CI=1`, workers=2, retries=0. Root-reset RED/GREEN,
+  source journal, metadata, downloads, actual file chooser and full shared undo/redo
+  are included.
+- General, TypeScript and security native ECC static reviews approved the final
+  implementation and small UI/test follow-up after findings were corrected. Reviews
+  did not execute the parent's checks; no C# or dependency-audit result is claimed.
+
+The final full-browser and exact-head CI results are recorded in
+[draft PR #8](https://github.com/Kazo-ca/HtmlAnimation/pull/8), after those checks run.
+Provider validation counts never replace these consumer results.
+
 ## Output boundaries still required
 
 Public native validation and HTML context cloning are usable by integration ports.

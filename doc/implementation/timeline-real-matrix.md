@@ -19,10 +19,12 @@ needed the new additive `resolveHtmlConflict` method delegated to its genuine in
 No expected refusal, timeout or retry policy was weakened. Full consumer validation of
 this reference is recorded below as it executes; provider test counts are not our evidence.
 
-Four Chromium editable-file journeys passed with CI=1, workers=2 and retries=0, including
-native download, unsupported-source validation, invalid-file refusal and the complete
-A/B/open/edit/undo/redo chain with source journal and metadata. The other browsers and
-the complete consumer suite remain required before claiming this batch verified.
+Fifteen editable-file journeys and three explicit spatial-unavailability checks passed
+across Chromium/Firefox/WebKit with CI=1, workers=2 and retries=0. These cover native
+download, unsupported-source validation, invalid-file refusal, root reset and the complete
+A/B/open/edit/undo/redo chain with source journal and metadata. All 693 unit/integration
+tests pass, including the 26 native opening cases. See `editable-project.md` for the
+initial browser failures, their fixes and the exact PR record of final full validation.
 
 The broader final-candidate conflict API is installed but the general bridge mapping is
 still separate work. Shared source-relative spatial mapping remains unavailable. These

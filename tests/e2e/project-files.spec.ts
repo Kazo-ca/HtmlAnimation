@@ -25,9 +25,15 @@ test('manual save downloads original native keys and context without evaluated f
   await page.locator('#real-undo').click(); await expect(angle).toHaveValue('90');
 });
 
-test('checking a native authoring file retains its curves and leaves the current project untouched', async ({ page }) => {
+test('checking a native authoring file retains its curves and leaves the current project untouched', async ({ page }, testInfo) => {
   await page.goto('/timeline-real.html'); await expect(page.locator('#real-events')).toContainText('Moteur réel prêt'); const before = await currentDocument(page);
-  await page.locator('#real-project-file').setInputFiles(resolve('fixtures/native-editable-project.json'));
+  await expect(page.locator('#real-project-filename')).toHaveText('Aucun fichier choisi');
+  const downloading = page.waitForEvent('download'); await page.locator('#real-project-example').click(); const download = await downloading;
+  const path = testInfo.outputPath('example-project.json'); await download.saveAs(path); const example = JSON.parse(await readFile(path, 'utf8')) as EditableProject;
+  expect(example.source.id).toBe('gradient-workshop-conic'); expect(example.provenance.kind).toBe('real');
+  await page.locator('#real-project-file').setInputFiles(path); await expect(page.locator('#real-project-open')).toBeEnabled(); expect(await currentDocument(page)).toBe(before);
+  const choosing = page.waitForEvent('filechooser'); await page.locator('#real-project-choose').click(); const chooser = await choosing; await chooser.setFiles(resolve('fixtures/native-editable-project.json'));
+  await expect(page.locator('#real-project-filename')).toHaveText('native-editable-project.json');
   await expect(page.locator('#real-project-check')).toContainText('Format de projet valide'); await expect(page.locator('#real-project-check')).toContainText('native-project-fixture');
   await expect(page.locator('#real-project-check')).toContainText('source est indisponible'); await expect(page.locator('#real-project-open')).toBeDisabled();
   expect(await currentDocument(page)).toBe(before); await expect(page.locator('#real-key-count')).toHaveText('0 clés · packages réels');
@@ -35,7 +41,7 @@ test('checking a native authoring file retains its curves and leaves the current
 
 test('opening a saved project shares undo with edits on both sides and retains its source journal and metadata', async ({ page }, testInfo) => {
   await page.goto('/timeline-real.html'); await expect(page.locator('#real-events')).toContainText('Moteur réel prêt');
-  const selectGradient = async (): Promise<void> => { await page.locator('#real-scene #gradient-box').click(); };
+  const selectGradient = async (): Promise<void> => { await page.locator('#real-tree').getByText('div#gradient-box', { exact: true }).click(); };
   const angle = page.getByRole('region', { name: 'Dégradé', exact: true }).getByLabel('Angle du dégradé', { exact: true });
   const editAngle = async (value: string): Promise<void> => { await selectGradient(); await angle.fill(value); await angle.press('Tab'); };
   const downloadProject = async (name: string): Promise<EditableProject> => {

@@ -94,6 +94,8 @@ this demo knows only its three gradient source fixtures. Unknown sources remain 
 Checking a file alone changes no project. The versioned codec is reusable without Timeline;
 the private native capture/opening examples and limits are in
 [the persistence record](doc/implementation/editable-project.md).
+The workshop's **Exemple conique · image 50** link downloads a reusable genuine saved
+fixture. Choose that file, open it, then seek to frame 50 to inspect its saved angle.
 
 ## Consumer API
 

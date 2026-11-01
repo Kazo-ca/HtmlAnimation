@@ -9,6 +9,7 @@ import provenance from '../vendor/timeline/manifest.json';
 import { createTimelineProjectValidationPorts } from '../integration/project-codecs.js';
 import { encodeCurrentRealProject } from '../integration/project-capture.js';
 import { openRealProject } from '../integration/project-open.js';
+import projectExampleUrl from '../fixtures/gradient-workshop-conic-project.json?url&no-inline';
 import '@kazo-ca/timeline-editor/timeline-editor.css';
 import './styles.less';
 
@@ -19,6 +20,7 @@ let host: RealGradientHost | undefined; let designer: HtmlDesigner | undefined; 
 let fileGeneration = 0;
 const projectSource = { id: 'gradient-workshop', revision: 'source-v1' };
 const projectCheck = required('real-project-check'); const projectFile = required<HTMLInputElement>('real-project-file');
+const projectFileName = required('real-project-filename');
 const openProject = required<HTMLButtonElement>('real-project-open');
 const sourceRoot = sceneContainer.cloneNode(false) as HTMLElement;
 let checkedProject: EditableProject | null = null;
@@ -29,6 +31,8 @@ function sourceType(project: EditableProject): GradientType | null {
   return null;
 }
 required('real-reference').textContent = provenance.reference;
+required<HTMLAnchorElement>('real-project-example').href = projectExampleUrl;
+required<HTMLButtonElement>('real-project-choose').addEventListener('click', () => projectFile.click());
 function update(): void {
   if (!host) return;
   const state = host.adapter.getState(); const faulted = (designer?.getFault() ?? null) !== null; undo.disabled = faulted || !state.canUndo; redo.disabled = faulted || !state.canRedo; frame.value = String(state.frame);
@@ -39,7 +43,7 @@ function update(): void {
   openProject.disabled = faulted || !host.canCaptureProject() || !checkedProject || !sourceType(checkedProject);
 }
 function mount(type: GradientType): void {
-  fileGeneration++; projectFile.value = ''; checkedProject = null;
+  fileGeneration++; projectFile.value = ''; projectFileName.textContent = 'Aucun fichier choisi'; checkedProject = null;
   unsubscribe?.(); designer?.dispose(); host?.dispose(); editorContainer.replaceChildren();
   for (const attribute of [...sceneContainer.attributes]) sceneContainer.removeAttributeNode(attribute);
   for (const attribute of sourceRoot.attributes) sceneContainer.setAttributeNS(attribute.namespaceURI, attribute.name, attribute.value);
@@ -69,8 +73,10 @@ required('real-project-save').addEventListener('click', () => {
   } catch (error) { projectCheck.textContent = error instanceof Error ? error.message : 'Le projet n’a pas pu être enregistré.'; }
 });
 projectFile.addEventListener('change', async () => {
-  const file = projectFile.files?.[0]; if (!file) return;
-  const generation = ++fileGeneration; checkedProject = null; update(); projectCheck.textContent = 'Lecture du fichier projet…';
+  const file = projectFile.files?.[0]; const generation = ++fileGeneration; checkedProject = null;
+  projectFileName.textContent = file?.name ?? 'Aucun fichier choisi'; update();
+  if (!file) { projectCheck.textContent = 'Aucun fichier choisi.'; return; }
+  projectCheck.textContent = 'Lecture du fichier projet…';
   try {
     if (file.size > 10 * 1024 * 1024) throw new Error('Le fichier dépasse la taille de projet autorisée.');
     const text = await file.text(); if (generation !== fileGeneration) return;
