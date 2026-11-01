@@ -1,0 +1,13 @@
+{
+  "$comment": "vendor/timeline/manifest.json",
+  "sourceRepository": "Kazo-ca/JsAnimationTimeline",
+  "reference": "a3b7652534a4532050d8c21d3703f957c50d61d9",
+  "functionalReference": "a3b7652534a4532050d8c21d3703f957c50d61d9",
+  "documentaryReference": "f88738c3b9ade14850b8f9ce91dfda6a336eec64",
+  "capabilities": { "crossedStopPositionOrder": true, "atomicHostEffects": false },
+  "packages": [
+    { "name": "@kazo-ca/timeline-runtime", "archive": "kazo-ca-timeline-runtime-1.0.0.tgz", "bytes": 452565, "sha256": "64000DD3C3FA3F6EBF0F82029E244DA7151E6F3AF3B81A41D74B924A41E227F2" },
+    { "name": "@kazo-ca/timeline-editor", "archive": "kazo-ca-timeline-editor-1.0.0.tgz", "bytes": 1107559, "sha256": "3FC98E27B0090800D4F7F16717E29B4F2ACDEA3E63328525CFC115FD078B11CA" },
+    { "name": "@kazo-ca/timeline-export-css", "archive": "kazo-ca-timeline-export-css-1.0.0.tgz", "bytes": 74077, "sha256": "B745CA1C740B926D29C6678DD682DE546D141A5E507ABC7DFA1012D66FCF93BE" }
+  ]
+}

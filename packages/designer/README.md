@@ -19,9 +19,10 @@ designer.dispose();
 ```
 
 The factory is supplied by the application; this package does not implement a real
-JsAnimationTimeline bridge yet. `TimelineAdapter` describes local consumer needs;
+JsAnimationTimeline bridge. `TimelineAdapter` describes local consumer needs;
 it does not claim existing Timeline package signatures. The test/demo simulation
-is excluded from this package. See the repository's HA-ADAPTER-001/r3 document.
+is excluded from this package, as is the repository's limited private genuine HA7
+bridge. See the repository's HA-ADAPTER-001/r4 document and real verification matrix.
 
 Selection and frame refresh never create a key. First UI edits require an explicit
 ID/class target. Persistent ID/class edits have Full XPath deltas (`documentchange`)
@@ -41,8 +42,19 @@ data; `resolveConflict(id, choiceId)` applies one advertised choice. Observe
 HTML attributes. Choices and any announced starting key use the shared undo stack.
 Older adapters retain conservative current-frame suspension and edit refusal.
 
-These batches do not provide independent gradient tracks,
-project reload/export, retargeting of already animated objects
-or verified integration with a real Timeline version. Public attribute edits allow
+Optional `adapter.gradients` supplies detached original/evaluated definitions and
+independent component tracks. `editGradient`, `addGradientStop`, `removeGradientStop`
+and the gradient gesture methods use its guarded atomic command. The reusable CSS
+control and spatial handles share selected IDs; temporary previews are separate from
+structure changes (`gradientchange`) and original DOM edits. No temporal engine lives
+in this package. Missing atomic structural support is visibly disabled independently.
+
+`faulted` command results, execution exceptions with uncertain compensation and
+`TimelineState.fault` latch a visible fault. Observe `fault` or inspect `getFault()`.
+Editing/history remain blocked until the Designer is recreated with a coherently
+recovered host; selection or seeking does not reenable them.
+
+These batches do not provide project reload/export, retargeting of already animated
+objects or complete real Timeline conformity. Public attribute edits allow
 only ID/class and currently reject IDs requiring CSS escaping. Coordinate external
 source changes by disposing/recreating the Designer. GPL-2.0-only.

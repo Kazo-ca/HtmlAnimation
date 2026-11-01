@@ -9,5 +9,5 @@ export default defineConfig({
     '@kazo-ca/html-designer': fileURLToPath(new URL('./packages/designer/src/index.ts', import.meta.url)),
   } },
   server: { fs: { allow: ['..'] } },
-  build: { outDir: '../dist/demo', emptyOutDir: true },
+  build: { outDir: '../dist/demo', emptyOutDir: true, rolldownOptions: { input: { designer: fileURLToPath(new URL('./demo/index.html', import.meta.url)), realTimeline: fileURLToPath(new URL('./demo/timeline-real.html', import.meta.url)) } } },
 });

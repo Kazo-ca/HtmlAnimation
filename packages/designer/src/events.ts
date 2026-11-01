@@ -1,5 +1,6 @@
 // packages/designer/src/events.ts
 import type { ConflictResolution } from './conflict-types.js';
+import type { GradientDefinition } from '@kazo-ca/css-properties';
 export interface DocumentChange {
   readonly fullXPath: string;
   readonly attribute: 'id' | 'class';
@@ -11,7 +12,9 @@ export interface DesignerEvents {
   propertychange: { readonly property: string; readonly oldValue: string; readonly newValue: string; readonly frame: number };
   documentchange: { readonly changes: readonly DocumentChange[]; readonly direction: 'execute' | 'undo' | 'redo' };
   resolutionchange: { readonly resolutions: readonly ConflictResolution[]; readonly direction: 'execute' | 'undo' | 'redo' };
+  gradientchange: { readonly objectId: string; readonly definitions: readonly GradientDefinition[]; readonly direction: 'execute' | 'undo' | 'redo' };
   diagnostic: { readonly message: string };
+  fault: { readonly message: string };
 }
 export class DesignerEmitter {
   private readonly listeners = new Map<keyof DesignerEvents, Set<(event: never) => void>>();

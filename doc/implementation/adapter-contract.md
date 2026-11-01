@@ -1,15 +1,16 @@
 <!-- doc/implementation/adapter-contract.md -->
-# HA-ADAPTER-001 — local consumer boundary, revision 3
+# HA-ADAPTER-001 — local consumer boundary, revision 4
 
-Date: 2026-10-30. Consumes HA-TL-001/r2 and HA-DESIGN-001/r1 unchanged.
-Status: **proposal implemented and tested with a simulation only**. This document
+Date: 2026-10-31. Consumes HA-TL-001/r2 and HA-DESIGN-001/r1 unchanged.
+Status: **local proposal; simulations plus a limited private HA7 bridge**. This document
 does not amend a shared Timeline guarantee or claim a published Timeline signature.
 Changes to this boundary require a revision and migration notes. Changes to the shared
 contract must separately follow the revision/copy process in `doc/integration/README.md`.
 
 The host gives `HtmlDesigner` its original Timeline instance and an adapter factory.
 Types live in `packages/designer/src/timeline-adapter.ts`. The revision 1 document
-is archived as `adapter-contract-r1.md`; revision 2 is in `adapter-contract-r2.md`.
+is archived as `adapter-contract-r1.md`; revisions 2 and 3 are in
+`adapter-contract-r2.md` and `adapter-contract-r3.md`.
 Existing r1/r2 adapters remain accepted;
 the declared shared revision is a consumed document reference, not a conformity claim.
 
@@ -22,7 +23,7 @@ It does not add temporal evaluation, a second history or a real Timeline mapping
 | `kind`, `contractRevision` | Declare `simulation`/`real` and consumed shared revision (r1 or r2). |
 | `getState()` | Read frame 1..N, duration, stable object IDs/selectors, selected object, evaluated values, history availability. No mutation. Values describe each object's own properties before HTML specificity resolution. |
 | `execute(label, writes, effect?)` | One atomic public command; each write carries object ID, selector, property, value, frame. A new target object and its first key are one command. Optional HTML effect participates in the same history. |
-| result | `changed`, `unchanged`, or `rejected` plus French user-facing reason. A rejected transaction applies neither writes nor HTML effects. |
+| result | `changed`, `unchanged`, `rejected` or `faulted`. The latter two retain a French user-facing reason. Rejection guarantees no effects; fault means compensation is uncertain and editing/history must stop. |
 | `effect.redo/undo` | The adapter applies the effect and temporal changes atomically and rolls back both if a command fails. It retains the effect as part of history; never silently replaces the whole temporal document to emulate editing. |
 | `undo/redo()` | Restore keys, target creation, effects and evaluated preview coherently. |
 | `selectObject()` | Selection only; no animation mutation. |
@@ -131,6 +132,60 @@ policy, preserve HA4 context signatures, supply authoritative diagnostics and in
 host context effects into shared history through public APIs. HA4 documentation alone
 does not verify that mapping. No real TL-C14 conformity is claimed.
 
+## Independent structured gradients (r4)
+
+`TimelineAdapter.gradients` is optional; its consumer types live in `gradient-types.ts`.
+`read(objectId)` returns a detached snapshot with original `definitions`, evaluated
+`gradients`, explicit component `tracks`, opaque revision and capability diagnostics.
+`canAddStop:false` independently disables structural creation while supported component
+fields remain usable. The host supplies the initial structure; no arbitrary CSS parser
+or temporal evaluator is added to the Designer.
+
+Each stable gradient/point ID addresses type, angle, center, radii, opaque normalized
+sRGB color, independent opacity, position or presence. A removed point remains in the
+structure and retains its other channels. Crossed points render sorted by evaluated
+position, ties by structural order; the saved structure and IDs never change order.
+
+`compose(request)` is pure static composition for a gesture draft. `execute(request,
+isCurrent)` validates revision, frame, selection/lifecycle and target membership before
+and after callbacks, then commits context/bindings and keys in one shared history entry.
+Its accepted-change receipt is detached and captured **before** backend notifications;
+the Designer must not infer accepted values by rereading after a callback seeks or undoes.
+Duplicate component addresses are refused. A new point has initial presence false and
+four explicit current-frame writes; no earlier key or fade is invented.
+
+Public methods: `getGradientState`, `editGradient`, `addGradientStop`,
+`removeGradientStop`, `selectGradient`, `beginGradientGesture`, `previewGradient`,
+`commitGradientGesture`, `cancelGradientGesture`. Drafts create no key, history entry
+or edit event; context changes cancel them. Raw `background`/`background-image` edits
+are refused when structured channels own that background, pending explicit conflict
+resolution. Single-element handles share selected point identity with the panel;
+unsupported origin/crop/transform/attachment contexts keep fields and explain the limit.
+
+The private `integration/timeline-real.ts` bridge uses pinned public HA7 packages.
+It verifies a limited keys-only mapping, genuine runtime hold and pre-registered point
+presence. Structural add, arbitrary CSS, new objects, r3 spatial mapping and HTML effects
+are explicitly refused. Backend notifications are intermediate in HA7; coalescing this
+adapter's own listeners does not make other backend observers atomic. See
+`timeline-real-matrix.md` for executed evidence and pending HA8 public guarantees.
+
+## Persistent compensation faults (r4)
+
+`MutationResult` and `GradientMutationResult` preserve `faulted` and its message.
+`TimelineState.fault` optionally exposes a host fault. An unexpected exception from an
+executing command/history operation is conservatively treated as uncertain, rather than
+as an ordinary no-effects rejection. `getFault()` returns the first latched diagnostic.
+`fault` is emitted once; editing, drafts and undo/redo remain disabled for this instance.
+Selection and frame inspection do not clear it. Recreate the Designer with a coherently
+recovered host; omitting `fault` from a later snapshot does not silently rearm editing.
+
+Success notifications are deferred until the command returns an accepted result.
+An uncertain ID/class effect clears pending success events without claiming the source
+was restored. The visible journal is marked uncertain. HA8 mapping must additionally
+capture and restore exact private journal/pending/first-execution/target state during
+compensation; inverse user actions are not an exact rollback participant. This local
+fault path does not invent a public HA8 signature or certify a decorated stage participant.
+
 ## Designer observations and document changes
 
 - `selectionchange`: current elements and optional associated object ID. No edits.
@@ -145,6 +200,9 @@ does not verify that mapping. No real TL-C14 conformity is claimed.
   through this event so they cannot interrupt a committed command or its undo.
 - `resolutionchange`: complete detached saved resolutions and history direction.
   No notification for open/cancel, selection, frame changes, no-op or refusal.
+- `gradientchange`: detached original definitions and history direction when structure
+  changes. Component key edits are `propertychange`, not original DOM changes.
+- `fault`: the first persistent uncertain-state diagnostic; no success is implied.
 
 The host owns source persistence and coordinates external DOM/CSS mutations. Preview
 restoration touches only driven properties and preserves unrelated live inline styles.

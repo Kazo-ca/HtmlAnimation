@@ -1,6 +1,21 @@
 // demo/styles.less
 body { margin: 0; }
 .DemoApp {
+  .real-reference, .real-limits { padding: 12px 20px; margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+  .real-timeline-section { padding: 16px; min-width: 0; overflow: auto; background: white; border-top: 1px solid var(--line); }
+  .real-timeline-section h2 { font-size: 14px; }
+  .real-timeline-section #real-timeline { height: 360px; min-width: 280px; }
+  .real-project { padding: 16px; }
+  .real-project pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; max-height: 300px; overflow: auto; }
+  #real-frame { width: 80px; }
+  .gradient-scene { padding: 24px; }
+  .gradient-scene h2 { font: 28px/1.2 Georgia, serif; margin: 0 0 12px; }
+  .gradient-scene p { color: var(--muted); font-size: 12px; }
+  .gradient-board { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 20px; margin: 28px 0; }
+  .gradient-subject { display: grid; min-width: 0; place-items: center; font-weight: 600; color: white; text-shadow: 0 1px 4px #000; border: 1px solid #566e62; border-radius: 6px; }
+  .gradient-tracks { grid-column: 1/-1; background: #f4f7ef; border-top: 1px solid var(--line); padding: 12px 20px; }
+  .gradient-tracks h3 { font-size: 13px; margin: 0 0 8px; }
+  .gradient-tracks ul { display: flex; flex-wrap: wrap; gap: 8px 24px; font: 12px/1.5 Consolas, monospace; padding-left: 18px; overflow-wrap: anywhere; }
   .css-editor-scene { padding: 24px; background: #fff; border: 1px solid #d4dfd7; }
   .css-editor-scene h2 { font: 30px/1.15 Georgia, serif; max-width: 560px; }
   .css-editor-scene p { color: #566c64; font-size: 12px; line-height: 1.7; }

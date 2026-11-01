@@ -52,4 +52,15 @@ inventory lives in `doc/implementation/css-catalog-coverage.json`. Catalogue mem
 does not claim browser, interpolation or export support. CSS gradient drafts do not
 implement temporal stop identities/tracks or depend on Timeline.
 
-The control appends a `.CssPropertiesPanel` root. Compiled CSS and LESS sources are scoped to that root. `destroy` removes only the control UI and deactivates its listeners.
+`GradientEditor` is a second autonomous controlled control for **host-supplied structured
+gradients**. Import it from the same package and stylesheet, then use
+`setGradients(definitions, viewOptions)` and `setSelection(gradientId, stopId)`.
+`onChange` emits an edit/add-stop intent; `onPreview` emits a draft or `null`;
+`onSelectionChange` carries stable IDs. These callbacks do not create history or keys.
+The host owns acceptance, structure and temporal evaluation. Opaque color and alpha
+are independent fields; absent points keep their IDs and can be restored. The bar
+renders crossed stops sorted by position without changing structural identity/order.
+
+The controls append `.CssPropertiesPanel` and `.CssGradientEditor` roots respectively.
+Compiled CSS and LESS sources are scoped to these roots. `destroy` removes only the
+control UI, discards previews and deactivates its listeners.
