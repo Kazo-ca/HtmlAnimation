@@ -49,8 +49,10 @@ confirms one runtime shared by editor/export-css. Browser style entry:
 ## Required real evidence on one exact reference
 
 Designer-owned tests import the installed archives, not Timeline source or mocks.
-18 integration tests and the first 15 browser journeys passed; the full browser run
-including six new viewport checks is ongoing. Simulation results never enter this table.
+18 focused integration tests and all 21 browser journeys passed. The broader local
+240-case browser run had 238 passes/two unrelated accessibility timeouts under load;
+clean-install coverage had 492 passes/one 5s genuine-test timeout. These are not complete
+local-green results. Simulation results never enter this table.
 
 | ID / contract | Genuine-package journey | Current limit |
 | --- | --- | --- |

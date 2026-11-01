@@ -63,8 +63,19 @@ state is introduced by the reusable control.
   claim is made.
 - Three package builds, both demo entries and an offline packed-consumer build passed.
   Final clean installation/full coverage/browser results are still being collected.
-  The current full 240-case browser run has timeouts under concurrent workstream load;
-  no complete-green result is claimed until an isolated complete run passes.
+  The full 240-case local browser run finished with 238 passes and two accessibility
+  timeouts under concurrent workstream load; all 21 genuine-package journeys passed.
+  Clean-install coverage finished with 492 passes and one genuine-test timeout (5s),
+  not an assertion failure. Hosted CI and the next final isolated verification remain
+  distinct results; no complete-green local result is inferred from targeted passes.
+
+## Following atomic integration slice
+
+HA8 was delivered during final validation at functional reference
+`f6de3c592c8c90c35285332f704ef68dfcce0b41`, contract `HA8-TRANSACTIONS/1`.
+Its three local archive hashes have been verified, but this 3b checkpoint still installs
+HA7. Migration and consumer-specific atomic evidence will be a separate dedicated
+branch/PR; the provider's tests do not automatically certify this adapter.
 
 ## Real integration boundary
 
