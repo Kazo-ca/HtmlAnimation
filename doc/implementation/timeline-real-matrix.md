@@ -1,12 +1,35 @@
 <!-- doc/implementation/timeline-real-matrix.md -->
 # Real Timeline verification — Designer consumer matrix
 
-Reference HA-REAL-MATRIX-001/r1, 2026-10-31. This is a consumer evidence record and
+Reference HA-REAL-MATRIX-001/r2, 2026-10-31. This is a consumer evidence record and
 API request; it does not amend HA-TL-001/r2 or claim a delivered shared signature.
 
-## Current installed HA7 reference
+## Current installed HA8 reference — consumer verification ongoing
 
-Active functional commit: `a3b7652534a4532050d8c21d3703f957c50d61d9`, branch
+Functional reference `f6de3c592c8c90c35285332f704ef68dfcce0b41`,
+contract `HA8-TRANSACTIONS/1`. The three immutable archives are installed together;
+their sizes/hashes and exact installed manifests/ESM match. Runtime is deduplicated.
+The public factory/transaction/result declarations have been read from those packages.
+See `ha8-transactions.md` for provenance, RED/GREEN and the confirmed remaining
+backend-notification/Designer-render gap. That guarantee is not complete.
+
+| Current consumer path | Executed evidence | Remaining limit |
+| --- | --- | --- |
+| New gradient point + bindings + four keys | Genuine integration tests and three-browser journey, shared undo/redo with stable IDs and false initial presence | Backend observers still need prepared Designer rendering before notification. |
+| First opacity edit on the witness | Genuine object/target/binding/base/key transaction, hold/direct seek and undo removing object/context | This private mapping covers opacity on the fixture witness; general CSS is a separate extension. |
+| Original ID/class effects | Genuine three-browser edits, Full XPath journal and shared undo/redo; 14 simulation tests for exact participant compensation | Animated retargeting remains refused. No source save/reload claim. |
+| Fault and compensation | Genuine refused partial apply preserves redo; failed rollback is faulted and blocks mutation/history | Final reviewed conformance and render participant compensation remain pending. |
+| Element geometry/conflicts/output | Existing simulations and explicit genuine refusals | Relative r3/HA4 and conflict-A support are being coordinated; project round-trip/exports remain later work. |
+
+517 independent tests passed with the known rendering RED explicitly filtered out;
+30 genuine browser journeys passed. This is not a full-green HA8 integration result.
+
+The original HA7 matrix is archived in `timeline-real-matrix-r1.md`. Its tested subset
+and historical boundaries below are retained as history, not assumed HA8 passes.
+
+## Previous HA7 reference and completed checkpoint evidence
+
+Previous functional commit: `a3b7652534a4532050d8c21d3703f957c50d61d9`, branch
 `v2/HA7-gradient-stop-order`, PR128 open and unmerged. Documentary head:
 `f88738c3b9ade14850b8f9ce91dfda6a336eec64`. All three new archives were verified
 and installed together from a new immutable vendor path; HA6 was not overwritten.

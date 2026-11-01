@@ -76,12 +76,55 @@ test('genuine radial center gesture previews and commits two keys as one undo ac
   await expect(panel(page).getByLabel('Centre Y du dégradé', { exact: true })).toHaveValue('50');
 });
 
-test('genuine unsupported structural and spatial guarantees are visibly refused without changing keys', async ({ page }) => {
-  await load(page); await expect(panel(page).getByRole('button', { name: 'Ajouter un point', exact: true })).toBeDisabled();
-  await expect(panel(page)).toContainText('atomique');
+test('genuine structural addition is available while the unmapped spatial model is visibly refused', async ({ page }) => {
+  await load(page); await expect(panel(page).getByRole('button', { name: 'Ajouter un point', exact: true })).toBeEnabled();
   const rotation = page.locator('#real-properties input[data-property="rotation"]'); await rotation.fill('45deg'); await rotation.press('Tab');
   await expect(page.locator('#real-events')).toContainText('r3'); expect(await keys(page)).toBe(0);
   const hasTimelineService = await page.locator('#real-timeline .JsTimeLine').count(); expect(hasTimelineService).toBeGreaterThan(0);
+});
+
+test('genuine structural point creation shares one history entry with bindings and four current-frame keys', async ({ page }) => {
+  await load(page); await seek(page, 50); const before = await project(page); const prior = before.html.gradients?.gradientObject?.[0]?.stops.map(stop => stop.id) ?? [];
+  await panel(page).getByRole('button', { name: 'Ajouter un point', exact: true }).click();
+  const draft = panel(page).getByRole('group', { name: 'Nouveau point', exact: true });
+  await draft.getByLabel('Position du nouveau point', { exact: true }).fill('35'); await draft.getByLabel('Opacité du nouveau point', { exact: true }).fill('0.6');
+  await draft.getByRole('button', { name: 'Ajouter ce point', exact: true }).click();
+  const saved = await project(page); const added = saved.html.gradients?.gradientObject?.[0]?.stops.find(stop => !prior.includes(stop.id)); if (!added) throw new Error('Missing genuinely created point');
+  expect(added.present).toBe(false); expect(await keys(page)).toBe(4);
+  const bindings = Object.entries(saved.html.bindings?.gradientObject ?? {}).filter(([, binding]) => binding.kind === 'gradient' && binding.stopId === added.id); expect(bindings).toHaveLength(4);
+  await expect(page.locator('#real-events')).toContainText('Structure du dégradé');
+  await seek(page, 20); await expect(panel(page).locator(`[data-gradient-stop="${added.id}"]`)).toHaveCount(0);
+  await seek(page, 75); await expect(panel(page).locator(`[data-gradient-stop="${added.id}"]`)).toHaveCount(1);
+  await page.locator('#real-undo').click(); expect(await project(page)).toEqual(before); expect(await keys(page)).toBe(0);
+  await page.locator('#real-redo').click(); expect(await project(page)).toEqual(saved); expect(await keys(page)).toBe(4);
+  await expect(page.getByRole('region', { name: 'Modifications du document original' })).toContainText('Document original inchangé');
+});
+
+test('genuine first opacity edit creates its object and source base only after explicit targeting', async ({ page }) => {
+  await load(page); await seek(page, 50); const before = await project(page); const peer = page.locator('#real-scene #gradient-peer'); const source = await peer.getAttribute('style');
+  await peer.click(); const opacity = page.locator('#real-properties input[data-property="opacity"]'); await opacity.fill('0.4'); await opacity.press('Tab');
+  const picker = page.getByRole('group', { name: 'Choisir la cible pour enregistrer' }); await expect(picker).toBeVisible(); expect(await keys(page)).toBe(0);
+  await page.getByLabel('Cibles existantes', { exact: true }).selectOption('#gradient-peer'); await picker.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  const saved = await project(page); const layer = saved.timeline.layers.find(candidate => candidate.type === 'layer' && candidate.target && 'selector' in candidate.target && candidate.target.selector === '#gradient-peer');
+  if (!layer || layer.type !== 'layer') throw new Error('Missing genuinely created opacity object');
+  expect(layer.propertyTimelines?.opacity?.initialValue).toEqual({ kind: 'number', value: 1 }); expect(layer.propertyTimelines?.opacity?.keys).toEqual([{ frame: 50, value: { kind: 'number', value: 0.4 } }]);
+  expect(saved.html.bindings?.[layer.id]?.opacity).toEqual({ kind: 'style', cssName: 'opacity' }); await expect(peer).toHaveCSS('opacity', '0.4');
+  await seek(page, 20); await expect(peer).toHaveCSS('opacity', '1'); await seek(page, 75); await expect(peer).toHaveCSS('opacity', '0.4');
+  await page.locator('#real-undo').click(); expect(await project(page)).toEqual(before); expect(await peer.getAttribute('style')).toBe(source);
+  await page.locator('#real-redo').click(); expect(await project(page)).toEqual(saved); await expect(peer).toHaveCSS('opacity', '0.4');
+});
+
+test('genuine effect-only ID and class edits retain their original XPath through shared undo and redo', async ({ page }) => {
+  await load(page); const before = await project(page); const peer = page.locator('#real-scene #gradient-peer'); const originalClass = await peer.getAttribute('class'); await peer.click();
+  await page.getByLabel('Nouvel identifiant', { exact: true }).fill('renamed-peer'); await page.getByRole('button', { name: 'Appliquer l’ID', exact: true }).click();
+  const journal = page.getByRole('region', { name: 'Modifications du document original' }); await expect(journal).toContainText('gradient-peer → renamed-peer');
+  const firstXPath = await journal.locator('li').first().textContent(); expect(firstXPath).toContain('/html/body/');
+  await page.getByLabel('Classes du document', { exact: true }).fill('gradient-subject revised'); await page.getByRole('button', { name: 'Appliquer les classes', exact: true }).click();
+  expect(await keys(page)).toBe(0); expect(await project(page)).toEqual(before); await expect(journal.locator('li')).toHaveCount(2);
+  await page.locator('#real-undo').click(); await expect(page.locator('#real-scene #renamed-peer')).toHaveAttribute('class', originalClass ?? '');
+  await page.locator('#real-undo').click(); await expect(page.locator('#real-scene #gradient-peer')).toHaveCount(1); await expect(journal).toContainText('Document original inchangé');
+  await page.locator('#real-redo').click(); await expect(journal.locator('li').first()).toHaveText(firstXPath ?? '');
+  await page.locator('#real-redo').click(); await expect(page.locator('#real-scene #renamed-peer')).toHaveAttribute('class', 'gradient-subject revised'); expect(await keys(page)).toBe(0);
 });
 
 for (const width of [320, 1440]) test(`genuine package workbench fits ${width}px and preserves keyboard point selection`, async ({ page }, testInfo) => {

@@ -15,7 +15,7 @@ let host: RealGradientHost | undefined; let designer: HtmlDesigner | undefined; 
 required('real-reference').textContent = provenance.reference;
 function update(): void {
   if (!host) return;
-  const state = host.adapter.getState(); undo.disabled = !state.canUndo; redo.disabled = !state.canRedo; frame.value = String(state.frame);
+  const state = host.adapter.getState(); const faulted = (designer?.getFault() ?? null) !== null; undo.disabled = faulted || !state.canUndo; redo.disabled = faulted || !state.canRedo; frame.value = String(state.frame);
   const count = host.editor.document.layers.reduce((sum, layer) => sum + (layer.type === 'layer' ? Object.values(layer.propertyTimelines ?? {}).reduce((total, track) => total + track.keys.length, 0) : 0), 0);
   required('real-key-count').textContent = `${count} clés · packages réels`;
   required('real-document').textContent = JSON.stringify({ timeline: host.editor.document, html: host.stage.animationContext }, null, 2);
@@ -27,6 +27,8 @@ function mount(type: GradientType): void {
   designer = new HtmlDesigner({ scene, propertiesContainer: required('real-properties'), treeContainer: required('real-tree'), timeline: host.editor, adapter: () => { if (!host) throw new Error('Hôte réel absent.'); return host.adapter; } });
   designer.on('propertychange', change => { eventLog.textContent = `Propriété enregistrée : ${change.property} · ${change.oldValue} → ${change.newValue} · image ${change.frame}`; update(); });
   designer.on('documentchange', change => { eventLog.textContent = `Document original modifié · ${change.direction}`; });
+  designer.on('gradientchange', change => { eventLog.textContent = `Structure du dégradé · ${change.direction} · identités conservées`; update(); });
+  designer.on('fault', change => { undo.disabled = true; redo.disabled = true; eventLog.textContent = change.message; });
   designer.on('diagnostic', change => { eventLog.textContent = change.message; });
   unsubscribe = host.adapter.onChange(update); designer.selectTarget('#gradient-box'); update();
   eventLog.textContent = 'Moteur réel prêt · composants indépendants et historique Timeline. Aucun résultat de simulation affiché ici.';

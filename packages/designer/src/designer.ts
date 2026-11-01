@@ -75,6 +75,7 @@ export class HtmlDesigner<T = unknown> {
   private fault: string | null = null;
   private mutationDepth = 0;
   private deferredNotifications: TimelineReason[] = [];
+  private transactionPreview = false;
 
   public constructor(options: DesignerOptions<T>) {
     this.scene = options.scene; this.adapter = options.adapter(options.timeline);
@@ -184,6 +185,8 @@ export class HtmlDesigner<T = unknown> {
   }
   private timelineChanged(reason: TimelineReason): void {
     if (this.syncing || this.disposed) return;
+    if (reason === 'preview') this.transactionPreview = true;
+    if (reason === 'cancel' || reason === 'execute' || reason === 'undo' || reason === 'redo') this.transactionPreview = false;
     this.gradientController?.cancel(false);
     this.cancelConflict();
     if (this.gesture) { this.gesture = null; }
@@ -200,6 +203,8 @@ export class HtmlDesigner<T = unknown> {
     this.notifyTimelineChange(reason);
   }
   private notifyTimelineChange(reason: TimelineReason): void {
+    if (reason === 'cancel') { this.pendingDocumentChange = null; return; }
+    if (reason === 'preview' || this.transactionPreview) return;
     this.gradientController?.observe(reason);
     const resolutions = this.getConflictState()?.resolutions ?? [];
     const resolutionsKey = JSON.stringify(resolutions);
@@ -287,13 +292,43 @@ export class HtmlDesigner<T = unknown> {
       if (this.target && !this.elements.every(selected => resolveTarget(this.scene, this.target ?? '').includes(selected))) this.target = null;
       this.pendingDocumentChange = { changes: [change], direction };
     };
-    return this.runMutation(() => this.adapter.execute(`Change ${attribute}`, [], {
+    const result = this.runMutation(() => this.adapter.execute(`Change ${attribute}`, [], {
       redo: () => { apply(newValue, after, first ? 'execute' : 'redo'); first = false; },
       undo: () => apply(oldValue, before, 'undo'),
+      prepare: direction => {
+        const value = direction === 'undo' ? oldValue : newValue;
+        const expected = direction === 'undo' ? newValue : oldValue;
+        if (this.disposed || !this.origin.has(element) || !this.scene.contains(element)) throw new Error('La cible du document original n’est plus disponible.');
+        if (element.getAttribute(attribute) !== expected) throw new Error('L’attribut source a changé hors de cette commande. Rechargez un projet cohérent.');
+        if (attribute === 'id' && value !== null && Array.from(element.ownerDocument.querySelectorAll('[id]')).some(candidate => candidate !== element && candidate.id === value)) throw new Error('Cet identifiant est maintenant utilisé par un autre élément.');
+        // Preparation is read-only. Compensation restores this exact capture rather
+        // than executing an inverse user action that would prepare another event.
+        const capture = { value: element.getAttribute(attribute), changes: this.changes, pending: this.pendingDocumentChange, notifications: [...this.deferredNotifications], target: this.target, first };
+        return {
+          changed: capture.value !== value,
+          apply: () => { apply(value, direction === 'undo' ? before : after, direction); if (direction !== 'undo') first = false; },
+          rollback: () => {
+            if (capture.value === null) element.removeAttribute(attribute); else element.setAttribute(attribute, capture.value);
+            this.changes = capture.changes; this.pendingDocumentChange = capture.pending;
+            this.deferredNotifications = [...capture.notifications]; this.target = capture.target; first = capture.first;
+            this.tree.refresh();
+          },
+        };
+      },
     }));
+    if (result.status === 'rejected') { this.render(); return this.reject(result.message); }
+    return result;
   }
-  public undo(): MutationResult { if (this.fault) return this.faultResult(); this.gradientController?.cancel(false); this.cancelConflict(); this.cancelGeometryGesture(); return this.disposed ? { status: 'unchanged' } : this.runMutation(() => this.adapter.undo()); }
-  public redo(): MutationResult { if (this.fault) return this.faultResult(); this.gradientController?.cancel(false); this.cancelConflict(); this.cancelGeometryGesture(); return this.disposed ? { status: 'unchanged' } : this.runMutation(() => this.adapter.redo()); }
+  public undo(): MutationResult { return this.changeHistory('undo'); }
+  public redo(): MutationResult { return this.changeHistory('redo'); }
+  private changeHistory(direction: 'undo' | 'redo'): MutationResult {
+    if (this.fault) return this.faultResult();
+    this.gradientController?.cancel(false); this.cancelConflict(); this.cancelGeometryGesture();
+    if (this.disposed) return { status: 'unchanged' };
+    const result = this.runMutation(() => this.adapter[direction]());
+    if (result.status === 'rejected') { this.render(); return this.reject(result.message); }
+    return result;
+  }
   private compatible(property: string): boolean { return this.elements.length <= 1 || isGeometryProperty(property) || new Set(this.elements.map(element => this.origin.fingerprint(element, property))).size <= 1; }
   private displayValue(property: string, computed?: ReadonlyMap<HTMLElement, CSSStyleDeclaration>): string {
     const state = this.adapter.getState();
@@ -460,7 +495,7 @@ export class HtmlDesigner<T = unknown> {
     }
     this.tree.setSelection(this.elements);
     this.ui.setSelection(this.target ?? (this.elements[0] ? `${this.elements[0].localName}${this.elements[0].id ? `#${this.elements[0].id}` : ''} · inspection` : 'Sélectionnez un élément'), this.elements.length === 1 ? this.elements[0] : undefined);
-    this.ui.setChanges(this.changes); this.conflictsUi.render(conflicts);
+    this.ui.setChanges(this.changes, this.transactionPreview); this.conflictsUi.render(conflicts);
     this.gradientController?.refresh(state.objects.find(object => object.selector === this.target)?.id ?? null, this.elements, this.mode);
     this.refreshPanel(); this.highlight();
     if (this.fault) this.ui.setFault(this.fault);
@@ -499,6 +534,9 @@ export class HtmlDesigner<T = unknown> {
   /** Delay success notifications until the command has returned a reliable result. */
   private runMutation(action: () => MutationResult): MutationResult {
     if (this.fault) return this.faultResult();
+    try { const fault = this.adapter.getState().fault; if (fault !== undefined) this.enterFault(fault); }
+    catch { this.enterFault('L’état du projet est inaccessible. Rechargez un projet cohérent avant de reprendre.'); }
+    if (this.fault) { this.render(); return this.faultResult(); }
     this.mutationDepth++;
     let result: MutationResult;
     try { result = action(); }

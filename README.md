@@ -13,7 +13,7 @@ The interface is in French. Requires Node.js 24+ and npm 11+.
 The functional batches provide inspection, synchronized selection, selection/test modes,
 explicit first-edit targeting, property edits, shared undo/redo, original ID/class change tracking
 with Full XPath, and temporary style preview. The main demo uses clearly labelled
-recorded simulations. A separate limited genuine HA7 package workshop is available;
+recorded simulations. A separate genuine package workshop is available;
 full real integration remains pending the atomic host transaction contract.
 Batch 2 adds move, dimensions, rotation, scale, compensated pivot, grid/alignment aids,
 pointer/keyboard interaction and one undo per multi-property gesture.
@@ -79,9 +79,12 @@ history are demonstrated with the simulation. Crossed points preserve their IDs 
 render sorted by evaluated position.
 
 The [genuine package workshop](http://127.0.0.1:43127/timeline-real.html) uses the three
-immutable HA7 archives recorded in `vendor/timeline/manifest.json`. It exercises runtime
-hold, direct seeks, component gestures and pre-registered point presence. New structural
-points, HTML effects and the existing r3 spatial mapping are visibly refused there.
+immutable HA8 archives recorded in `vendor/timeline/manifest.json`. It exercises runtime
+hold, direct seeks, component gestures, real structural point addition, first opacity
+object creation and ID/class effects with shared history. General CSS and the existing
+r3 element-geometry mapping remain explicit limits. A genuine backend observer test
+still exposes the old Designer preview before its notification refresh; the delivered
+atomic document/context/effect API does not by itself complete prepared host rendering.
 See [the real evidence matrix](doc/implementation/timeline-real-matrix.md) for limits.
 
 ## Consumer API
@@ -111,7 +114,7 @@ designer.on('propertychange', ({ property, oldValue, newValue, frame }) => {
 ```
 
 `createHostAdapter` is application-provided; its local proposed interface is documented
-in [HA-ADAPTER-001/r4](doc/implementation/adapter-contract.md). It is **not** an existing
+in [HA-ADAPTER-001/r5](doc/implementation/adapter-contract.md). It is **not** an existing
 JsAnimationTimeline API. No fake is exported from the three libraries. Build outputs
 include ESM, declarations, CSS and the existing GPL-2.0 license. Package names are
 provisional; nothing has been published.
