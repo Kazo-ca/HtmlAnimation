@@ -4,13 +4,13 @@ import type { CssProperty } from '@kazo-ca/css-properties';
 import { HierarchicalDomTree } from '@kazo-ca/hierarchical-dom-tree';
 import type { TreeSelectionContext } from '@kazo-ca/hierarchical-dom-tree';
 import { DomOrigin } from './dom-origin.js';
-import { getDomPreviewOrigin } from './dom-preview.js';
+import { getDomPreviewOrigin, getDomPreviewScene } from './dom-preview.js';
 import type { ElementProjection } from './dom-preview.js';
 import { DesignerEmitter } from './events.js';
 import type { DesignerEvents, DocumentChange } from './events.js';
 import { InspectorUi } from './inspector-ui.js';
 import { resolveTarget, specificity, targetChoices } from './targets.js';
-import type { MutationResult, PreparedEffect, TimelineAdapter, TimelineReason, TimelineState } from './timeline-adapter.js';
+import type { HistoryDirection, MutationResult, PreparedEffect, TimelineAdapter, TimelineReason, TimelineState } from './timeline-adapter.js';
 import { geometryContext, geometryDefaults, geometryProperties, geometryStateKey, geometryValues, isGeometryProperty, pivotCoordinates, projectGeometry, unresolvedPercentageHeight, validGeometryValue } from './geometry-dom.js';
 import { geometryLengthPixels, snapPosition, updateGeometry } from './geometry-math.js';
 import type { GeometryGuide, GeometryMetrics, GeometryState, GeometryTool, Point } from './geometry-math.js';
@@ -24,6 +24,10 @@ import type { ProjectionCandidate } from './conflicts.js';
 import { GradientController } from './gradient-controller.js';
 import type { GradientColor, GradientEdit } from '@kazo-ca/css-properties';
 import type { GradientSnapshot } from './gradient-types.js';
+import { copyProjectState, projectProfile } from './project/rehydration.js';
+import type { ProjectChange, ProjectProfile, ProjectRehydrationState, ProjectState } from './project/rehydration.js';
+import { validateEditableProject } from './project/validation.js';
+import { ProjectValidationError } from './project/types.js';
 
 export interface PropertyEdit { readonly property: string; readonly newValue: string; readonly capture?: boolean }
 interface GeometryGesture {
@@ -79,6 +83,8 @@ export class HtmlDesigner<T = unknown> {
   private mutationDepth = 0;
   private deferredNotifications: TimelineReason[] = [];
   private transactionPreview = false;
+  private projectProfile: ProjectProfile | null = null;
+  private pendingProjectChange: ProjectChange | null = null;
 
   public constructor(options: DesignerOptions<T>) {
     this.scene = options.scene; this.adapter = options.adapter(options.timeline);
@@ -109,6 +115,66 @@ export class HtmlDesigner<T = unknown> {
   }
   public on<K extends keyof DesignerEvents>(type: K, listener: (event: DesignerEvents[K]) => void): () => void { return this.emitter.on(type, listener); }
   public getDocumentChanges(): readonly DocumentChange[] { return this.changes.map(change => ({ ...change })); }
+  public getProjectState(): ProjectState | null {
+    return this.projectProfile ? copyProjectState({ ...this.projectProfile, documentChanges: this.changes }) : null;
+  }
+  /** Trusted host opening only: publish terminal success after its final flush succeeds. */
+  public executeProjectMutation(action: () => MutationResult): MutationResult {
+    if (this.disposed) return { status: 'rejected', message: 'Le Designer est fermé.' };
+    return this.runMutation(action);
+  }
+  /** A host participant: preparation captures memory only; the host owns source mounting. */
+  public prepareProjectRehydration(readNext: () => ProjectRehydrationState, direction: HistoryDirection): PreparedEffect {
+    this.requireProjectRehydration();
+    const capture = {
+      origin: this.origin, profile: this.projectProfile, changes: this.changes,
+      elements: [...this.elements], target: this.target, projectedValues: new Map(this.projectedValues),
+      pending: this.pending, document: this.pendingDocumentChange, project: this.pendingProjectChange,
+      notifications: [...this.deferredNotifications], epoch: this.contextEpoch, conflict: this.pendingConflict,
+      resolutionsKey: this.resolutionsKey, transactionPreview: this.transactionPreview,
+      gesture: this.gesture ? { ...this.gesture, state: { ...this.gesture.state }, values: { ...this.gesture.values }, guides: [...this.gesture.guides] } : null,
+      geometryTarget: this.pendingGeometryTarget, geometryTool: this.geometryTool, geometryOptions: { ...this.geometryOptions },
+      mode: this.mode, gradient: this.gradientController?.captureSession(),
+    };
+    let started = false;
+    return {
+      changed: true,
+      apply: () => {
+        this.requireProjectRehydration();
+        const next = readNext();
+        const result = validateEditableProject(next.project, next.validation);
+        if (result.status === 'invalid') throw new ProjectValidationError(result.issues);
+        if (getDomPreviewScene(next.preview) !== this.scene || this.adapter.preview !== next.preview) throw new Error('Le projet doit utiliser le propriétaire courant de la même scène HTML.');
+        const origin = getDomPreviewOrigin(next.preview);
+        const profile = projectProfile(result.project);
+        const event: ProjectChange = { ...copyProjectState({ ...profile, documentChanges: result.project.documentChanges }), direction };
+        // Mark before the first assignment: compensation also covers a partially applied setter.
+        started = true;
+        this.origin = origin; this.projectProfile = profile; this.changes = result.project.documentChanges;
+        this.elements = []; this.target = null; this.projectedValues = new Map();
+        this.pending = null; this.pendingDocumentChange = null; this.deferredNotifications = [];
+        this.contextEpoch++; this.pendingConflict = null; this.resolutionsKey = '';
+        this.gesture = null; this.pendingGeometryTarget = false; this.transactionPreview = false;
+        this.gradientController?.resetForProject(); this.pendingProjectChange = event;
+      },
+      rollback: () => {
+        if (!started) return;
+        this.origin = capture.origin; this.projectProfile = capture.profile; this.changes = capture.changes;
+        this.elements = [...capture.elements]; this.target = capture.target; this.projectedValues = new Map(capture.projectedValues);
+        this.pending = capture.pending; this.pendingDocumentChange = this.fault ? null : capture.document;
+        this.pendingProjectChange = this.fault ? null : capture.project; this.deferredNotifications = this.fault ? [] : [...capture.notifications];
+        this.contextEpoch = capture.epoch; this.pendingConflict = this.fault ? null : capture.conflict;
+        this.resolutionsKey = capture.resolutionsKey; this.transactionPreview = capture.transactionPreview;
+        this.gesture = this.fault ? null : capture.gesture; this.pendingGeometryTarget = !this.fault && capture.geometryTarget;
+        this.geometryTool = capture.geometryTool; this.geometryOptions = { ...capture.geometryOptions }; this.mode = capture.mode;
+        if (capture.gradient) this.gradientController?.restoreSession(capture.gradient);
+      },
+    };
+  }
+  private requireProjectRehydration(): void {
+    if (this.disposed) throw new Error('Le Designer est fermé.');
+    if (this.fault) throw new Error(this.fault);
+  }
   public getFault(): string | null { return this.fault; }
   public getGradientState(): GradientSnapshot | null { return this.gradientController?.getState() ?? null; }
   public editGradient(changes: readonly GradientEdit[]): MutationResult { return this.runMutation(() => this.gradientController?.edit(changes) ?? this.reject('Aucun dégradé structuré disponible.')); }
@@ -200,14 +266,21 @@ export class HtmlDesigner<T = unknown> {
       else { this.target = null; this.elements = []; }
       this.emitter.emit('selectionchange', { elements: this.elements, objectId: state.selectedObjectId });
     }
+    if (this.pendingProjectChange && ['execute', 'undo', 'redo'].includes(reason)) { this.tree.refresh(); this.ui.hideTargets(); }
     this.render();
-    if (this.fault) { this.pendingDocumentChange = null; return; }
+    if (this.fault) { this.pendingDocumentChange = null; this.pendingProjectChange = null; return; }
     if (this.mutationDepth) { this.deferredNotifications.push(reason); return; }
     this.notifyTimelineChange(reason);
   }
   private notifyTimelineChange(reason: TimelineReason): void {
-    if (reason === 'cancel') { this.pendingDocumentChange = null; return; }
+    if (reason === 'cancel') { this.pendingDocumentChange = null; this.pendingProjectChange = null; return; }
     if (reason === 'preview' || this.transactionPreview) return;
+    if (this.pendingProjectChange) {
+      if (!['execute', 'undo', 'redo'].includes(reason)) return;
+      this.gradientController?.resetContexts(); this.resolutionsKey = JSON.stringify(this.getConflictState()?.resolutions ?? []);
+      const event = this.pendingProjectChange; this.pendingProjectChange = null; this.pendingDocumentChange = null;
+      this.emitter.emit('projectchange', event); return;
+    }
     this.gradientController?.observe(reason);
     const resolutions = this.getConflictState()?.resolutions ?? [];
     const resolutionsKey = JSON.stringify(resolutions);
@@ -575,7 +648,7 @@ export class HtmlDesigner<T = unknown> {
   private enterFault(message: string): void {
     if (this.fault !== null) return;
     message = message.trim() ? message : 'État du projet incertain. Rechargez un projet cohérent avant de reprendre.';
-    this.fault = message; this.pendingDocumentChange = null; this.deferredNotifications = [];
+    this.fault = message; this.pendingDocumentChange = null; this.pendingProjectChange = null; this.deferredNotifications = [];
     this.pending = null; this.pendingGeometryTarget = false; this.gesture = null;
     this.cancelConflict(); this.gradientController?.setFault(message); this.ui.hideTargets(); this.ui.setFault(message);
     this.emitter.emit('fault', { message }); this.emitter.emit('diagnostic', { message });

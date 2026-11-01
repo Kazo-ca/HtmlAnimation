@@ -1,17 +1,21 @@
 {
   "$comment": "vendor/timeline/manifest.json",
   "sourceRepository": "Kazo-ca/JsAnimationTimeline",
-  "reference": "c340203e50ac84f5fb58e8f9e60dc83f3c2bdf56",
-  "functionalReference": "c340203e50ac84f5fb58e8f9e60dc83f3c2bdf56",
-  "documentaryReference": "c340203e50ac84f5fb58e8f9e60dc83f3c2bdf56",
+  "reference": "6d19da1f75af53e902b86164ce4cfb8003cef465",
+  "functionalReference": "6d19da1f75af53e902b86164ce4cfb8003cef465",
+  "documentaryReference": "6d19da1f75af53e902b86164ce4cfb8003cef465",
   "transactionContract": "HA8-TRANSACTIONS/1",
   "contractSha256": "AF74AFE1A6C4F37C621D91A1B47395D570B3D6C41A9B0777F0037AF80250FD9D",
   "hostRenderContract": "HA9-HOST-RENDER/1",
   "hostRenderContractSha256": "D359381B33D6D3863378BD463E313C1AD6070BB80054063168E46F6418C32091",
+  "conflictContract": "HA10-FINAL-CANDIDATE-CONFLICTS/1",
+  "conflictContractSha256": "7C5DBB4A6F6236496A5C7BFA68D380234CC7014406538059612A812ABFBB3FB5",
+  "historyRefusalContract": "HA9-HISTORY-REFUSALS/1",
+  "historyRefusalContractSha256": "31F661135DEE938E94C581DD549239C13CC871CF89DC85E15DB8DA2D07D3C43A",
   "capabilities": { "crossedStopPositionOrder": true, "atomicHostEffects": true, "preparedHostRendering": true },
   "packages": [
-    { "name": "@kazo-ca/timeline-runtime", "archive": "kazo-ca-timeline-runtime-1.0.0.tgz", "bytes": 458115, "sha256": "E8AED4B5126B6335DB78A9ACBBA27BD5B7924192CE11641C32FA9EBD63B6251F" },
-    { "name": "@kazo-ca/timeline-editor", "archive": "kazo-ca-timeline-editor-1.0.0.tgz", "bytes": 1157613, "sha256": "9C816308D0AB97E6FF0CB94FE56101379C01967A3C95D53FFCC8140221FE96C4" },
+    { "name": "@kazo-ca/timeline-runtime", "archive": "kazo-ca-timeline-runtime-1.0.0.tgz", "bytes": 458670, "sha256": "4BC4CDF7A977B0112290E3B9A8E7BDCC8B8E0D5B24EAEC4DF0F12E5BFAECC26B" },
+    { "name": "@kazo-ca/timeline-editor", "archive": "kazo-ca-timeline-editor-1.0.0.tgz", "bytes": 1168680, "sha256": "BC12A4A58670C9E18AB783DAF8E3B9A2F97B9DBD1133DFD9EA38418F3059FC22" },
     { "name": "@kazo-ca/timeline-export-css", "archive": "kazo-ca-timeline-export-css-1.0.0.tgz", "bytes": 74077, "sha256": "B745CA1C740B926D29C6678DD682DE546D141A5E507ABC7DFA1012D66FCF93BE" }
   ]
 }

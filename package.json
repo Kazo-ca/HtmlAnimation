@@ -27,9 +27,9 @@
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
     "@eslint/js": "10.0.1",
-    "@kazo-ca/timeline-editor": "file:vendor/timeline/c340203e50ac84f5fb58e8f9e60dc83f3c2bdf56/kazo-ca-timeline-editor-1.0.0.tgz",
-    "@kazo-ca/timeline-export-css": "file:vendor/timeline/c340203e50ac84f5fb58e8f9e60dc83f3c2bdf56/kazo-ca-timeline-export-css-1.0.0.tgz",
-    "@kazo-ca/timeline-runtime": "file:vendor/timeline/c340203e50ac84f5fb58e8f9e60dc83f3c2bdf56/kazo-ca-timeline-runtime-1.0.0.tgz",
+    "@kazo-ca/timeline-editor": "file:vendor/timeline/6d19da1f75af53e902b86164ce4cfb8003cef465/kazo-ca-timeline-editor-1.0.0.tgz",
+    "@kazo-ca/timeline-export-css": "file:vendor/timeline/6d19da1f75af53e902b86164ce4cfb8003cef465/kazo-ca-timeline-export-css-1.0.0.tgz",
+    "@kazo-ca/timeline-runtime": "file:vendor/timeline/6d19da1f75af53e902b86164ce4cfb8003cef465/kazo-ca-timeline-runtime-1.0.0.tgz",
     "@playwright/test": "1.64.1",
     "@types/node": "24.10.0",
     "@vitest/coverage-v8": "5.0.5",
