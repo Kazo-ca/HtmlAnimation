@@ -48,8 +48,26 @@ internal parsers are not public. Several properties and targets commit as one co
 with one undo. Locked layers (directly or through a folder), duplicate declarations and
 implicit binding replacement are refused before mutation.
 
-The broader final-candidate conflict API is installed but its bridge mapping (HA10) is
-still separate work. Shared source-relative spatial mapping remains unavailable. These
+HA10 conflict lot (2026-11-02, branch `codex/ha10-conflicts`, stacked on atomic CSS):
+`integration/conflict-bridge.ts` maps Timeline's blocking diagnostics onto the local r3
+conflict capability. Each conflict is reported under its binding's CSS name, so aliases
+match the Designer.
+- Choices are Timeline's own `choices` × `policies`. The native `id` and `signature`
+  are passed through as opaque values and never parsed.
+- Choice A is announced only when the winner's own style contribution has a first key
+  after the conflict start. It writes that key's value at the start frame, limited to
+  the public `contributions` pair.
+- `editor.transactions.resolveHtmlConflict` commits the decision and its announced keys
+  as one native transaction and one undo. No local period engine, signature or winner
+  exists.
+- The canonical ID-over-class case stays automatic.
+
+Two consumer fixes made the Designer's own confirmation guard compatible with HA10.
+The final revalidation sees Timeline's candidate, so the bridge reports the confirmed
+revision while it is confirming. The target guard now compares source attributes through
+the shared preview owner, because committed preview styles are not source changes.
+
+Shared source-relative spatial mapping remains unavailable. These
 packages are local unpublished archives, not an assumption about a registry release.
 
 The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
@@ -64,7 +82,7 @@ The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
 | Files and source journal UI | Real downloads, read-only validation, explicit open/undo/redo, source metadata retained, fresh workshop root reset | Demo catalogue contains its three source fixtures only. |
 | Recursive inventory, targets and class groups | Genuine nested folders, nested gradient owners, class-group first edits, multi-target single undo and early refusals (`timeline-general-adapter.test.ts`) | Writes are mapped explicitly through the CSS mapping table. |
 | Atomic CSS | Genuine opacity, color and logical border-style keys with typed source bases, aliases, group bases, compound single undo and early refusals (`timeline-css-atomic.test.ts`) | Other CSS declarations, named colors and r3 spatial adjustments stay explicitly unmapped. |
-| Conflict A | Reusable controls/simulations; HA10 public API is present in installed packages | HA10 mapping is the next work. |
+| HA10 conflicts and choice A | Genuine priority decision, choice A with its announced key, one undo/redo, stale revision/signature/choice/guard refusals, canonical ID-over-class, aliased CSS name and the Designer path (`timeline-ha10-conflicts.test.ts`) | No browser journey yet; `before-first` policies are mapped generically but no native fixture produced one. |
 | Shared spatial projection and outputs | Existing simulations and explicit genuine unavailable states | No real source-relative mapping or faithful JSON/JS/CSS playback export claim. |
 
 Native project-opening tests use the installed packages and public fault seams. The
