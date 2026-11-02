@@ -1,0 +1,59 @@
+{
+  "format": "html-animation-project",
+  "version": 1,
+  "source": { "id": "native-project-fixture", "revision": "source-v1" },
+  "timeline": {
+    "version": "2.0.0",
+    "settings": { "fps": 24, "totalFrames": 101 },
+    "layers": [{
+      "id": "nativeObject", "type": "layer", "name": "Native editable curves",
+      "target": { "selector": "#native-box" }, "spans": [],
+      "propertyTimelines": {
+        "opacity": {
+          "initialValue": { "kind": "number", "value": 0.3 },
+          "keys": [{ "frame": 1, "value": { "kind": "number", "value": 0 } }, { "frame": 51, "value": { "kind": "number", "value": 0.25 } }, { "frame": 101, "value": { "kind": "number", "value": 1 } }],
+          "label": "Opacité", "group": "Appearance",
+          "transitions": [
+            { "id": "splitLeft", "fromFrame": 1, "toFrame": 51, "source": { "start": 1, "end": 101, "keys": [{ "frame": 1, "value": { "kind": "number", "value": 0 } }, { "frame": 101, "value": { "kind": "number", "value": 1 } }], "easing": { "kind": "effect", "family": "power", "mode": "in", "parameters": { "power": 2 } } } },
+            { "id": "splitRight", "fromFrame": 51, "toFrame": 101, "source": { "start": 1, "end": 101, "keys": [{ "frame": 1, "value": { "kind": "number", "value": 0 } }, { "frame": 101, "value": { "kind": "number", "value": 1 } }], "easing": { "kind": "effect", "family": "power", "mode": "in", "parameters": { "power": 2 } } } }
+          ]
+        },
+        "gradientPosition": {
+          "initialValue": { "kind": "number", "value": 50 },
+          "keys": [{ "frame": 20, "value": { "kind": "number", "value": 25 } }, { "frame": 80, "value": { "kind": "number", "value": 75 } }],
+          "transitions": [{ "id": "positionCurve", "fromFrame": 20, "toFrame": 80, "easing": { "kind": "bezier", "x1": 0.2, "y1": -0.1, "x2": 0.8, "y2": 1.1 } }]
+        },
+        "gradientPresence": { "initialValue": { "kind": "boolean", "value": false }, "keys": [{ "frame": 75, "value": { "kind": "boolean", "value": true } }] },
+        "gradientOpacity": { "initialValue": { "kind": "number", "value": 0.65 }, "keys": [{ "frame": 90, "value": { "kind": "number", "value": 0.2 } }] },
+        "gradientColor": { "initialValue": { "kind": "color", "r": 0, "g": 0.1, "b": 0.5, "a": 1 }, "keys": [{ "frame": 40, "value": { "kind": "color", "r": 1, "g": 0.5, "b": 0.1, "a": 1 } }] }
+      }
+    }]
+  },
+  "htmlContext": {
+    "version": 1,
+    "bindings": { "nativeObject": {
+      "opacity": { "kind": "style", "cssName": "opacity" },
+      "gradientPosition": { "kind": "gradient", "gradientId": "main", "stopId": "middle", "component": "position" },
+      "gradientPresence": { "kind": "gradient", "gradientId": "main", "stopId": "latent", "component": "present" },
+      "gradientOpacity": { "kind": "gradient", "gradientId": "main", "stopId": "latent", "component": "opacity" },
+      "gradientColor": { "kind": "gradient", "gradientId": "main", "stopId": "latent", "component": "color" }
+    } },
+    "gradients": { "nativeObject": [{
+      "id": "main", "cssName": "background-image", "type": "linear", "angle": 90,
+      "centerX": 50, "centerY": 50, "radiusX": 50, "radiusY": 50,
+      "stops": [
+        { "id": "first", "color": { "kind": "color", "r": 0.1, "g": 0.4, "b": 0.3, "a": 1 }, "opacity": 1, "position": 0, "present": true },
+        { "id": "middle", "color": { "kind": "color", "r": 0.95, "g": 0.7, "b": 0.25, "a": 1 }, "opacity": 1, "position": 50, "present": true },
+        { "id": "last", "color": { "kind": "color", "r": 0.2, "g": 0.35, "b": 0.7, "a": 1 }, "opacity": 1, "position": 100, "present": true },
+        { "id": "latent", "color": { "kind": "color", "r": 0, "g": 0.1, "b": 0.5, "a": 1 }, "opacity": 0.65, "position": 30, "present": false }
+      ]
+    }] },
+    "resolutions": [{ "conflictId": "previous-overlap", "signature": "opaque-stale-ticket", "winnerLayerId": "removedLayer", "beforeFirst": "underlying" }]
+  },
+  "documentChanges": [
+    { "fullXPath": "/html/body/main/div[1]", "attribute": "id", "oldValue": null, "newValue": "native-box" },
+    { "fullXPath": "/html/body/main/div[1]", "attribute": "class", "oldValue": "", "newValue": "animated" }
+  ],
+  "provenance": { "kind": "real", "adapterRevision": "HA-ADAPTER-001/r5", "timelineReference": "f6de3c592c8c90c35285332f704ef68dfcce0b41" },
+  "metadata": { "title": "Native editable round-trip fixture", "constructor": "ordinary JSON data", "__proto__": { "kept": true } }
+}

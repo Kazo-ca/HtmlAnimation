@@ -11,8 +11,8 @@
   <body>
     <div class="DemoApp">
       <header class="app-header">
-        <div class="identity"><span class="app-mark" aria-hidden="true">H<span>↗</span></span><div><strong>HtmlAnimation</strong><span>Atelier HTML · lot 02</span></div></div>
-        <span class="simulation-badge">Timeline simulée</span>
+        <div class="identity"><span class="app-mark" aria-hidden="true">H<span>↗</span></span><div><strong>HtmlAnimation</strong><span>Atelier HTML · lot 03b</span></div></div>
+        <span class="simulation-badge">Timeline simulée</span><a href="./timeline-real.html">Essais Timeline réelle</a>
         <div class="history"><button id="undo" type="button">↶ Annuler</button><button id="redo" type="button">↷ Rétablir</button></div>
       </header>
       <div class="workspace">
@@ -20,8 +20,11 @@
         <main class="stage-area">
           <div class="stage-toolbar"><div class="modes" role="group" aria-label="Mode d’interaction"><button id="select-mode" aria-pressed="true" type="button">↖ Sélection</button><button id="test-mode" aria-pressed="false" type="button">▷ Test</button></div><span>Scène fournie par l’hôte</span></div>
           <div class="scenario-choice"><label for="geometry-variant">Scénario géométrique</label><select id="geometry-variant"><option value="basic">Poignées et propriétés</option><option value="percentage">Bloc contenant et pourcentages</option><option value="css-transform">Transformation CSS relative</option><option value="nested-transform">Cascade CSS imbriquée</option><option value="initial-transform">Transformation initiale</option><option value="variable-identity">Variable CSS sans transformation</option></select><span>Charger avec « Atelier géométrique ».</span></div>
+          <div class="scenario-choice"><label for="conflict-variant">Scénario de conflit</label><select id="conflict-variant"><option value="priority">Priorité entre deux classes</option><option value="start-key">Priorité et clé de départ explicite (A)</option><option value="stale">Décision devenue périmée</option></select><button id="conflict-scene" type="button">Atelier des conflits</button><button id="invalidate-conflict" type="button" hidden>Modifier les contributions simulées</button></div>
+          <div class="scenario-choice"><label for="gradient-type">Dégradé initial</label><select id="gradient-type"><option value="linear">Linéaire</option><option value="radial">Radial</option><option value="conic">Conique</option></select><button id="gradient-scene" type="button">Atelier des dégradés</button></div>
           <div class="stage-mat"><div id="scene-host"></div></div>
-          <section class="sample-controls" aria-label="Échantillons Timeline simulés"><div class="panel-heading"><span>02</span><h2>Repères du scénario</h2></div><div class="frame-row"><label for="frame">Image</label><select id="frame"><option>1</option><option>20</option><option>49</option><option>50</option><option>75</option><option>100</option></select><span>/ 100</span><button id="select-group" type="button">Groupe .button</button><button id="select-specific" type="button">Objet #button-2</button></div><div class="frame-strip" aria-hidden="true"><span>1 <b>◆</b></span><span>20</span><span>49</span><span>50 <b>◆</b></span><span>75</span><span>100</span></div><p>Évaluations enregistrées du cas groupe/ID. L’édition simulée ne modifie que l’image courante. Aucune interpolation n’est exécutée ici.</p></section>
+          <section class="sample-controls" aria-label="Échantillons Timeline simulés"><div class="panel-heading"><span>02</span><h2>Repères du scénario</h2></div><div class="frame-row"><label for="frame">Image</label><select id="frame"><option>1</option><option>20</option><option>49</option><option>50</option><option>75</option><option>100</option></select><span>/ 100</span><button id="select-group" type="button">Groupe .button</button><button id="select-specific" type="button">Objet #button-2</button></div><div class="frame-strip" aria-hidden="true"><span>1 <b>◆</b></span><span>20</span><span>49</span><span>50 <b>◆</b></span><span>75</span><span>100</span></div><p id="sample-description">Évaluations enregistrées du cas groupe/ID. L’édition simulée ne modifie que l’image courante. Aucune interpolation n’est exécutée ici.</p></section>
+          <section id="gradient-tracks" class="gradient-tracks" aria-label="Pistes de dégradé simulées" hidden></section>
         </main>
         <aside class="inspector" aria-label="Inspecteur CSS"><div class="panel-heading"><span>03</span><h2>Propriétés</h2></div><div id="properties"></div></aside>
       </div>

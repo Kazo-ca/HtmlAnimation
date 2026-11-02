@@ -17,6 +17,11 @@ this scope before implementation; the TDD guide authored the initial integration
 3. **Gradients and conflict resolution.** Stable stop identities, independent property
    lines, diagnostics and explicit persistent resolution commands. Until this exists,
    unresolved equal-specificity conflicts are rejected/suspended; no arbitrary winner.
+   Batch 3a delivers the explicit-conflict UI/adapter/simulation slice described in
+   `conflict-resolution.md`; batch 3b supplies independent gradient tracks/control,
+   spatial handles and simulation history as described in `gradient-tracks.md`.
+   The separate genuine HA7 workshop verifies only the mapped keys-only subset;
+   atomic structure/host effects await the delivered public HA8 contract.
 4. **Persistence and faithful outputs.** Versioned editable project schema, original keys
    and decisions, JSON/JS/CSS fidelity and explicit unsupported-output diagnostics.
 5. **Real Timeline integration.** Receive exact API mapping and version/commit from the

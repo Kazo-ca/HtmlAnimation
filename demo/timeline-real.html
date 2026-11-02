@@ -1,0 +1,29 @@
+<!-- demo/timeline-real.html -->
+<!doctype html>
+<html lang="fr">
+  <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:43127; object-src 'none'; base-uri 'self'; frame-src 'none'"><title>HtmlAnimation — Timeline réelle</title></head>
+  <body>
+    <div class="DemoApp">
+      <header class="app-header"><div class="identity"><strong>HtmlAnimation</strong><span>Essais de raccordement local</span></div><span id="real-engine" class="simulation-badge">Timeline réelle · archives locales</span><a href="./index.html">Ateliers sur simulation</a><div class="history"><button id="real-undo" type="button">Annuler</button><button id="real-redo" type="button">Rétablir</button></div></header>
+      <div class="scenario-choice"><label for="real-type">Dégradé initial</label><select id="real-type"><option value="linear">Linéaire</option><option value="radial">Radial</option><option value="conic">Conique</option></select><button id="real-load" type="button">Charger le dégradé</button><label for="real-frame">Image réelle</label><input id="real-frame" type="number" min="1" max="100" value="1"><button id="real-seek" type="button">Aller à l’image</button><span id="real-key-count"></span></div>
+      <p class="real-reference">Référence des archives : <code id="real-reference"></code>. Les valeurs et l’historique proviennent des packages installés.</p>
+      <section class="real-project-tools" aria-label="Projet éditable">
+        <h2>Projet éditable</h2><button id="real-project-save" type="button">Enregistrer le projet</button>
+        <button id="real-project-choose" type="button">Choisir un fichier</button><input id="real-project-file" type="file" accept=".json,application/json" aria-label="Fichier de projet" hidden>
+        <span id="real-project-filename" class="project-file-name">Aucun fichier choisi</span>
+        <button id="real-project-open" type="button" disabled>Ouvrir le projet</button>
+        <a id="real-project-example" download="exemple-projet-conique.json">Exemple conique · image 50</a>
+        <output id="real-project-check" aria-live="polite">Choisissez un fichier, puis ouvrez-le avec sa source HTML/CSS fournie par cet atelier.</output>
+      </section>
+      <div class="workspace">
+        <aside class="structure" aria-label="Structure HTML"><div class="panel-heading"><h1>Structure</h1></div><div id="real-tree"></div></aside>
+        <main class="stage-area"><div class="stage-mat"><div id="real-scene"></div></div><p class="real-limits" id="real-limits">Ajoutez un point à l’image choisie, puis annulez pour retirer sa structure et ses clés ensemble. Le témoin permet une première édition d’opacité ou un changement d’ID et de classes. Les outils de déplacement et de dimensions sont actuellement indisponibles dans cet atelier.</p></main>
+        <aside class="inspector" aria-label="Inspecteur CSS"><div class="panel-heading"><h2>Propriétés</h2></div><div id="real-properties"></div></aside>
+      </div>
+      <section class="real-timeline-section" aria-label="Éditeur Timeline réel"><h2>Timeline installée</h2><div id="real-timeline"></div></section>
+      <details class="real-project"><summary>Document et contexte · lecture de contrôle</summary><pre id="real-document"></pre></details>
+      <footer class="app-footer"><output id="real-events" aria-live="polite">Initialisation des packages réels…</output></footer>
+    </div>
+    <script type="module" src="./timeline-real.ts"></script>
+  </body>
+</html>

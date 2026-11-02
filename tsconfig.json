@@ -9,6 +9,7 @@
     "exactOptionalPropertyTypes": true,
     "useUnknownInCatchVariables": true,
     "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "types": ["node", "vite/client"],
     "paths": {
@@ -17,5 +18,5 @@
       "@kazo-ca/html-designer": ["./packages/designer/src/index.ts"]
     }
   },
-  "include": ["packages/**/*.ts", "fixtures/**/*.ts", "demo/**/*.ts", "tests/**/*.ts", "*.config.ts"]
+  "include": ["packages/**/*.ts", "fixtures/**/*.ts", "integration/**/*.ts", "demo/**/*.ts", "tests/**/*.ts", "*.config.ts"]
 }
