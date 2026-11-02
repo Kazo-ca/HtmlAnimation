@@ -1,9 +1,9 @@
 {
   "$comment": "vendor/timeline/manifest.json",
   "sourceRepository": "Kazo-ca/JsAnimationTimeline",
-  "reference": "6d19da1f75af53e902b86164ce4cfb8003cef465",
-  "functionalReference": "6d19da1f75af53e902b86164ce4cfb8003cef465",
-  "documentaryReference": "6d19da1f75af53e902b86164ce4cfb8003cef465",
+  "reference": "2b920f1123458b2ddd80d5c726eb1b11047e1d82",
+  "functionalReference": "2b920f1123458b2ddd80d5c726eb1b11047e1d82",
+  "documentaryReference": "2b920f1123458b2ddd80d5c726eb1b11047e1d82",
   "transactionContract": "HA8-TRANSACTIONS/1",
   "contractSha256": "AF74AFE1A6C4F37C621D91A1B47395D570B3D6C41A9B0777F0037AF80250FD9D",
   "hostRenderContract": "HA9-HOST-RENDER/1",
@@ -12,10 +12,32 @@
   "conflictContractSha256": "7C5DBB4A6F6236496A5C7BFA68D380234CC7014406538059612A812ABFBB3FB5",
   "historyRefusalContract": "HA9-HISTORY-REFUSALS/1",
   "historyRefusalContractSha256": "31F661135DEE938E94C581DD549239C13CC871CF89DC85E15DB8DA2D07D3C43A",
-  "capabilities": { "crossedStopPositionOrder": true, "atomicHostEffects": true, "preparedHostRendering": true },
+  "capabilities": {
+    "crossedStopPositionOrder": true,
+    "atomicHostEffects": true,
+    "preparedHostRendering": true,
+    "sharedSpatialProjection": true
+  },
   "packages": [
-    { "name": "@kazo-ca/timeline-runtime", "archive": "kazo-ca-timeline-runtime-1.0.0.tgz", "bytes": 458670, "sha256": "4BC4CDF7A977B0112290E3B9A8E7BDCC8B8E0D5B24EAEC4DF0F12E5BFAECC26B" },
-    { "name": "@kazo-ca/timeline-editor", "archive": "kazo-ca-timeline-editor-1.0.0.tgz", "bytes": 1168680, "sha256": "BC12A4A58670C9E18AB783DAF8E3B9A2F97B9DBD1133DFD9EA38418F3059FC22" },
-    { "name": "@kazo-ca/timeline-export-css", "archive": "kazo-ca-timeline-export-css-1.0.0.tgz", "bytes": 74077, "sha256": "B745CA1C740B926D29C6678DD682DE546D141A5E507ABC7DFA1012D66FCF93BE" }
-  ]
+    {
+      "name": "@kazo-ca/timeline-runtime",
+      "archive": "kazo-ca-timeline-runtime-1.0.0.tgz",
+      "bytes": 501016,
+      "sha256": "665FFC0856E732E7688F15E70319C0437225A31AC8DBA51D41476881A5313319"
+    },
+    {
+      "name": "@kazo-ca/timeline-editor",
+      "archive": "kazo-ca-timeline-editor-1.0.0.tgz",
+      "bytes": 1168967,
+      "sha256": "AC00A083ADC6015944D753BAD1D706817D89DE746A8E14AAD97444240173C28D"
+    },
+    {
+      "name": "@kazo-ca/timeline-export-css",
+      "archive": "kazo-ca-timeline-export-css-1.0.0.tgz",
+      "bytes": 76166,
+      "sha256": "5253386172FA71B097A7F163E3FF459BEFD58033ECC404C916449CD3831D6C95"
+    }
+  ],
+  "spatialContract": "HA11-SPATIAL-PROJECTION/1",
+  "spatialContractSha256": "005E0CB2A5BB8047ACB9C67FD04334E6607AF694878FF87307A2F2EDDAA9B88F"
 }

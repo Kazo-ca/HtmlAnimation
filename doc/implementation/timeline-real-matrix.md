@@ -35,9 +35,62 @@ undo. Writes still use an explicit property mapping table and remain opacity-onl
 the atomic CSS lot. Opening refuses only a gradient whose owner is not a selector layer.
 Timeline's own refusal of an absent target is kept unchanged.
 
-The broader final-candidate conflict API is installed but its bridge mapping (HA10) is
-still separate work. Shared source-relative spatial mapping remains unavailable. These
-packages are local unpublished archives, not an assumption about a registry release.
+Atomic CSS lot (2026-11-02, branch `codex/atomic-css`, stacked on the general adapter):
+`integration/css-mappings.ts` maps opacity, color and the four logical border-style
+longhands. Hyphenated declarations use explicit stable aliases such as
+`borderBlockStartStyle` with an explicit style binding; nothing is inferred from a
+camelCase name. A declared or inferable binding takes its base from Timeline inspection.
+A new alias reads each group member through the public `readHtmlPropertyBase` inside the
+preview owner's source window. The real context is never mutated, and divergent group
+bases are refused. Colors accept hexadecimal, `rgb()`/`rgba()` and `transparent`; named
+colors, variables and CSS-wide keywords are refused explicitly, because Timeline's
+internal parsers are not public. Several properties and targets commit as one command
+with one undo. Locked layers (directly or through a folder), duplicate declarations and
+implicit binding replacement are refused before mutation.
+
+HA10 conflict lot (2026-11-02, branch `codex/ha10-conflicts`, stacked on atomic CSS):
+`integration/conflict-bridge.ts` maps Timeline's blocking diagnostics onto the local r3
+conflict capability. Each conflict is reported under its binding's CSS name, so aliases
+match the Designer.
+- Choices are Timeline's own `choices` × `policies`. The native `id` and `signature`
+  are passed through as opaque values and never parsed.
+- Choice A is announced only when the winner's own style contribution has a first key
+  after the conflict start. It writes that key's value at the start frame, limited to
+  the public `contributions` pair.
+- `editor.transactions.resolveHtmlConflict` commits the decision and its announced keys
+  as one native transaction and one undo. No local period engine, signature or winner
+  exists.
+- The canonical ID-over-class case stays automatic.
+
+Two consumer fixes made the Designer's own confirmation guard compatible with HA10.
+The final revalidation sees Timeline's candidate, so the bridge reports the confirmed
+revision while it is confirming. The target guard now compares source attributes through
+the shared preview owner, because committed preview styles are not source changes.
+
+HA11 lot (2026-11-02, branch `codex/ha11-spatial`, stacked on HA10): the verified
+HA11 checkpoint `2b920f1123458b2ddd80d5c726eb1b11047e1d82` is installed from
+`vendor/timeline/2b920f1…/`. Its archive SHA-256 values match the provider record, and
+`HA11-SPATIAL-PROJECTION/1` is verified with the four earlier contracts. On the new
+packages and before any consumer change, 722/722 tests and 264/264 browser journeys
+passed unchanged.
+
+`integration/spatial-bridge.ts` maps the Designer geometry writes (translate, rotation,
+scale, pivot) to explicit `spatial*` aliases with `spatial` bindings. HA4 builtins such as
+`rotation` keep their absolute meaning.
+- Each layer gets one `prepend-trs` projection captured from the source inside the
+  preview owner's source window. An authored inline value is preferred; otherwise the
+  computed value is used, with provenance recorded either way.
+- A track's unit is fixed by its first key, and a unit change is refused rather than
+  converted.
+- Bases come from the definition: identity for adjustments, the captured origin for a
+  pivot in the same unit, and an explicit refusal otherwise. The internal
+  `readHtmlSpatialValue` and group-source capture are not public.
+- Groups must share one demonstrable source. Rendering passes `resolveHtmlSpatialBindings`
+  results to `composeHtmlDeclarations`.
+- The Designer's own fields and handles still refuse geometry while a shared preview
+  exists. Enabling them is the next step.
+
+These packages are local unpublished archives, not an assumption about a registry release.
 
 The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
 
@@ -49,9 +102,11 @@ The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
 | Opening compensation | Partial mount, Root adoption and renderer failures restore exact nodes/parents, authoring data, context, journal, owner, policy and redo | Irrecoverable compensation is a persistent fault, never a clean rejection. |
 | Replay resource guards | Mount/render invalidation on undo/redo, active A independent of unavailable B, including no CSS projection | No obsolete UI confirmation reused for replay. |
 | Files and source journal UI | Real downloads, read-only validation, explicit open/undo/redo, source metadata retained, fresh workshop root reset | Demo catalogue contains its three source fixtures only. |
-| Recursive inventory, targets and class groups | Genuine nested folders, nested gradient owners, class-group first edits, multi-target single undo and early refusals (`timeline-general-adapter.test.ts`) | Writes are mapped explicitly; only opacity until the atomic CSS lot. |
-| General CSS and conflict A | Reusable controls/simulations; HA10 public API is present in installed packages | Atomic CSS lot and HA10 mapping are the next work. |
-| Shared spatial projection and outputs | Existing simulations and explicit genuine unavailable states | No real source-relative mapping or faithful JSON/JS/CSS playback export claim. |
+| Recursive inventory, targets and class groups | Genuine nested folders, nested gradient owners, class-group first edits, multi-target single undo and early refusals (`timeline-general-adapter.test.ts`) | Writes are mapped explicitly through the CSS mapping table. |
+| Atomic CSS | Genuine opacity, color and logical border-style keys with typed source bases, aliases, group bases, compound single undo and early refusals (`timeline-css-atomic.test.ts`) | Other CSS declarations, named colors and r3 spatial adjustments stay explicitly unmapped. |
+| HA10 conflicts and choice A | Genuine priority decision, choice A with its announced key, one undo/redo, stale revision/signature/choice/guard refusals, canonical ID-over-class, aliased CSS name and the Designer path (`timeline-ha10-conflicts.test.ts`) | No browser journey yet; `before-first` policies are mapped generically but no native fixture produced one. |
+| HA11 spatial projection (bridge) | Genuine translate/rotate/scale/pivot keys, source capture and authored suffix, pivot base, compound single undo, unit refusal and group-source refusal (`timeline-ha11-spatial.test.ts`) | Designer fields/handles still refuse with the shared preview; no sourceTransform capture track or explicit conversion UI yet. |
+| Outputs | Existing simulations | No faithful JSON/JS/CSS playback export claim. |
 
 Native project-opening tests use the installed packages and public fault seams. The
 separate `project-rehydration` tests use a simulated host and prove only the reusable
