@@ -40,6 +40,7 @@ function update(): void {
   required('real-key-count').textContent = `${count} clés · packages réels`;
   required('real-document').textContent = JSON.stringify({ timeline: host.editor.document, html: host.stage.animationContext }, null, 2);
   required<HTMLButtonElement>('real-project-save').disabled = faulted || !host.canCaptureProject();
+  for (const format of ['json', 'javascript', 'css']) required<HTMLButtonElement>(`real-export-${format}`).disabled = faulted || !host.canCaptureProject();
   openProject.disabled = faulted || !host.canCaptureProject() || !checkedProject || !sourceType(checkedProject);
 }
 function mount(type: GradientType): void {
@@ -61,14 +62,32 @@ function mount(type: GradientType): void {
   projectSource.id = `gradient-workshop-${type}`;
   projectCheck.textContent = 'Choisissez un fichier, puis ouvrez-le avec sa source HTML/CSS fournie par cet atelier. L’ouverture peut être annulée.';
 }
+function download(text: string, filename: string, mimeType: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: mimeType })); const link = document.createElement('a');
+  link.href = url; link.download = filename; link.hidden = true; document.body.append(link); link.click(); link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+const exportCheck = required('real-export-check');
+const exportLabels = { json: 'JSON', javascript: 'JavaScript', css: 'CSS' } as const;
+for (const format of ['json', 'javascript', 'css'] as const) required(`real-export-${format}`).addEventListener('click', () => {
+  if (!host) return;
+  const output = host.exportPlayback(format);
+  if (output.status === 'refused') {
+    const alternatives = output.alternatives.map(alternative => exportLabels[alternative]).join(' ou ');
+    exportCheck.textContent = `Export ${exportLabels[format]} refusé, aucun fichier partiel : ${output.message}${alternatives ? ` Sorties disponibles : ${alternatives}.` : ''}`;
+    return;
+  }
+  try { download(output.text, output.filename, output.mimeType); }
+  catch (error) { exportCheck.textContent = `Le téléchargement ${exportLabels[format]} a échoué : ${error instanceof Error ? error.message : 'erreur inconnue'}.`; return; }
+  const fidelity = output.fidelity === 'frames' ? 'images entières, valeurs tenues entre les images' : 'CSS continu, sans échantillonnage';
+  exportCheck.textContent = `Export ${exportLabels[format]} téléchargé (${fidelity}).${output.diagnostics.length ? ` ${output.diagnostics.join(' ')}` : ''}`;
+});
 required('real-project-save').addEventListener('click', () => {
   if (!host || !designer) return;
   try {
     const profile = currentProfile();
     const text = encodeCurrentRealProject({ host, designer, source: profile.source, ...(profile.metadata === undefined ? {} : { metadata: profile.metadata }) });
-    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' })); const link = document.createElement('a');
-    link.href = url; link.download = 'projet-html-animation.json'; link.hidden = true; document.body.append(link); link.click(); link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    download(text, 'projet-html-animation.json', 'application/json');
     projectCheck.textContent = 'Projet éditable enregistré. La source HTML/CSS d’origine reste fournie par l’hôte.';
   } catch (error) { projectCheck.textContent = error instanceof Error ? error.message : 'Le projet n’a pas pu être enregistré.'; }
 });

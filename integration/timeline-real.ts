@@ -14,6 +14,8 @@ import artifactManifest from '../vendor/timeline/manifest.json';
 import { propertyMapping } from './css-mappings.js';
 import type { PropertyMapping } from './css-mappings.js';
 import { createConflictCapability } from './conflict-bridge.js';
+import { exportPlayback } from './playback-outputs.js';
+import type { PlaybackFormat, PlaybackOutput } from './playback-outputs.js';
 import { captureSpatialDefinition, isSpatialComponent, parseSpatialWrite, spatialAlias, spatialBase, spatialFieldValues } from './spatial-bridge.js';
 
 export interface ProjectRenderPolicy {
@@ -35,6 +37,8 @@ export interface RealGradientHost {
     navigate(frame: number): void;
     advance(milliseconds: number): void;
     canCaptureProject(): boolean;
+    /** Faithful JSON/JS/CSS playback through the public Timeline compilers; never mutates. */
+    exportPlayback(format: PlaybackFormat): PlaybackOutput;
     dispose(): void;
 }
 /** Context changes participate in transactions; callers only receive metadata access. */
@@ -569,6 +573,7 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         // Read-only snapshots are allowed during terminal observations, but never
         // while a group is provisional or compensation has become uncertain.
         canCaptureProject() { return !disposed && !editor.isDestroyed && faultMessage() === undefined && !isGrouping(); },
+        exportPlayback(format) { return exportPlayback({ available: () => !disposed && !editor.isDestroyed && faultMessage() === undefined && !isGrouping() && !running && !notifying, document: () => editor.document, context: () => stage.animationContext, registry: renderRegistry, root: scene, withSource: read => owner.withSource(read) }, format); },
         dispose() { if (disposed) return; const snapshot = getState(); editor.destroy(); lastState = snapshot; disposed = true; for (const unsubscribe of subscriptions) unsubscribe(); listeners.clear(); },
     };
     } catch (error) {
