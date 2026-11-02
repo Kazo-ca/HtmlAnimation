@@ -174,7 +174,7 @@ describe('genuine HA8 atomic Designer bridge', () => {
         if (!fault) throw new Error('Missing retained genuine fault');
         // Fault accessor seam only: the temporal engine and its retained fault remain genuine.
         const transactions = host.editor.transactions;
-        vi.spyOn(host.editor, 'transactions', 'get').mockReturnValue({ execute: request => transactions.execute(request), fault: { ...fault, message: '' } });
+        vi.spyOn(host.editor, 'transactions', 'get').mockReturnValue({ execute: request => transactions.execute(request), resolveHtmlConflict: request => transactions.resolveHtmlConflict(request), fault: { ...fault, message: '' } });
         expect(host.adapter.getState()).toMatchObject({ fault: expect.stringMatching(/\S/), canUndo: false, canRedo: false });
         const snapshot = host.adapter.gradients?.read('gradientObject');
         expect(snapshot).toMatchObject({ editable: false, canAddStop: false, reason: expect.stringMatching(/\S/) });

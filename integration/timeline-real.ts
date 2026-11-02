@@ -12,6 +12,11 @@ import { DomPreviewOwner } from '../packages/designer/src/dom-preview.js';
 import type { ElementProjection } from '../packages/designer/src/dom-preview.js';
 import artifactManifest from '../vendor/timeline/manifest.json';
 
+export interface ProjectRenderPolicy {
+    readonly active: (() => void) | null;
+    /** Rechecked through the prepared renderer, then consumed by its successful apply. */
+    readonly transition?: () => void;
+}
 export interface RealGradientHost {
     readonly editor: IEditor;
     readonly adapter: TimelineAdapter;
@@ -19,6 +24,9 @@ export interface RealGradientHost {
     readonly previewOwner: DomPreviewOwner;
     /** Trusted prepared host effects only: switch ownership after installing source DOM. */
     installPreviewOwner(owner: DomPreviewOwner): void;
+    readonly projectRenderPolicy: ProjectRenderPolicy;
+    /** Trusted host participant; compensation restores the preceding guard pointer. */
+    installProjectRenderPolicy(policy: ProjectRenderPolicy): void;
     executeTransaction(request: IEditorTransactionRequest): MutationResult;
     navigate(frame: number): void;
     advance(milliseconds: number): void;
@@ -178,11 +186,20 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
     let isGrouping = (): boolean => false;
     // The public plugin command facade exposes group state; IEditor itself does not.
     const groupMonitor: EditorPlugin = { id: 'designer.groupMonitor', dependencies: [], init: context => { isGrouping = () => context.commands.isGrouping; }, destroy: () => { isGrouping = () => false; } };
+    let projectRenderPolicy: ProjectRenderPolicy = { active: null };
     const editor = createEditor(editorContainer, { data, stage, clock, registry, plugins: [groupMonitor], hostRenderer: {
         prepare(candidate) {
             if (candidate.cause === 'destroy') return owner.prepareRestore();
+            const policy = projectRenderPolicy;
+            const guard = (): void => { policy.active?.(); policy.transition?.(); };
+            guard();
             const projection = owner.withSource(() => candidateProjection(candidate, stage, renderRegistry));
-            return owner.prepare(projection);
+            guard();
+            const prepared = owner.prepare(projection); guard();
+            return { changed: prepared.changed || policy.transition !== undefined, apply() {
+                guard(); prepared.apply(); guard();
+                if (policy.transition) projectRenderPolicy = { active: policy.active };
+            }, rollback() { try { prepared.rollback(); } finally { projectRenderPolicy = policy; } } };
         },
     } });
     try {
@@ -420,6 +437,8 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
     );
     return { editor, adapter, stage: metadata(stage), get previewOwner() { return owner; },
         installPreviewOwner(next) { owner = next; },
+        get projectRenderPolicy() { return projectRenderPolicy; },
+        installProjectRenderPolicy(policy) { projectRenderPolicy = policy; },
         executeTransaction: transact,
         navigate(frame) { if (!disposed) { editor.playback.seek(frame); clock.advance(0); } },
         advance(milliseconds) { if (!disposed) clock.advance(milliseconds); },

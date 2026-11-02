@@ -79,13 +79,23 @@ history are demonstrated with the simulation. Crossed points preserve their IDs 
 render sorted by evaluated position.
 
 The [genuine package workshop](http://127.0.0.1:43127/timeline-real.html) uses the three
-immutable HA9 archives recorded in `vendor/timeline/manifest.json`. It exercises runtime
+immutable HA9B archives recorded in `vendor/timeline/manifest.json`. It exercises runtime
 hold, direct seeks, component gestures, real structural point addition, first opacity
 object creation and ID/class effects with shared history. General CSS and the existing
 r3 element-geometry mapping remain explicit limits. Prepared host rendering now exposes
-the committed preview to backend observers before notifications. Two genuine refusal
-tests still await the upstream public undo/redo reason fix; no complete conformity is claimed.
+the committed preview to backend observers before notifications. Public undo/redo refusal
+reasons pass their genuine regression tests; full-product conformity is still separate.
 See [the real evidence matrix](doc/implementation/timeline-real-matrix.md) for limits.
+
+In that genuine workshop, **Enregistrer le projet** downloads native editable data,
+context and the net original-document journal. Choose a file, then **Ouvrir le projet**
+to restore it in the same undo history. The host provides the original HTML/CSS again;
+this demo knows only its three gradient source fixtures. Unknown sources remain unopened.
+Checking a file alone changes no project. The versioned codec is reusable without Timeline;
+the private native capture/opening examples and limits are in
+[the persistence record](doc/implementation/editable-project.md).
+The workshop's **Exemple conique · image 50** link downloads a reusable genuine saved
+fixture. Choose that file, open it, then seek to frame 50 to inspect its saved angle.
 
 ## Consumer API
 

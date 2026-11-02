@@ -54,7 +54,39 @@ in this package. Missing atomic structural support is visibly disabled independe
 Editing/history remain blocked until the Designer is recreated with a coherently
 recovered host; selection or seeking does not reenable them.
 
-These batches do not provide project reload/export, retargeting of already animated
+These batches do not provide output export, retargeting of already animated
 objects or complete real Timeline conformity. Public attribute edits allow
 only ID/class and currently reject IDs requiring CSS escaping. Coordinate external
 source changes by disposing/recreating the Designer. GPL-2.0-only.
+
+`validateEditableProject`, `encodeEditableProject` and `decodeEditableProject` provide
+a pure version-1 authoring envelope. The host supplies native validation ports for
+the complete temporal document and HTML context; no Timeline dependency is introduced.
+The envelope retains the source reference `{id, revision}`, provenance, original
+keys/curves/transitions/easings, context and stable IDs, net Full XPath journal and
+optional metadata. It does not contain per-frame samples or temporary preview styles.
+
+Validation copies and freezes data before calling the ports, retains warnings such
+as stale decisions, and rejects invalid authoring data explicitly. Configurable limits
+default to depth 64, 1,000,000 data nodes and 10 MiB of UTF-8 JSON. Accessors, functions,
+non-finite numbers, cycles and non-JSON objects are not executed or serialized. Native
+JSON property names are retained safely, including names matching prototype fields.
+`ProjectValidationError.issues` exposes French diagnostics and stable issue paths.
+
+This codec does not load the source, alter DOM/history, save a file or invoke playback
+compilers. The host must supply and verify the original HTML/CSS revision. A successful
+JSON round-trip alone does not prove source reattachment or native Timeline reload.
+
+For coordinated opening, `prepareProjectRehydration(readNext, direction)` captures a
+prepared participant with exact private-state compensation. The host mounts its checked
+source and journal, installs a preview owner for the same permanent root, then applies
+this participant inside its existing atomic history. It performs no independent DOM write
+or temporal operation. `executeProjectMutation(action)` brackets the trusted synchronous
+host transaction and suppresses success if its final flush faults. Do not use these methods
+as an independent history or a substitute for the host's source validation/compensation.
+
+`getProjectState()` returns a detached source reference, optional metadata and net journal
+after opening. Observe `projectchange` for the complete restored profile/journal and
+execute/undo/redo direction; loading saved journal entries emits no fake attribute edits.
+The private real integration and manual file demo show a verified host implementation
+for their documented subset. General real CSS/group and output mapping remain separate.

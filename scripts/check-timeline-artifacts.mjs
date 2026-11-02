@@ -13,6 +13,7 @@ const contracts = [
   ['transactionContract', 'contractSha256', 'doc/integration/timeline-ha8-api.md'],
   ['hostRenderContract', 'hostRenderContractSha256', 'doc/integration/timeline-ha9-host-render-api.md'],
   ['conflictContract', 'conflictContractSha256', 'doc/integration/timeline-ha10-conflict-api.md'],
+  ['historyRefusalContract', 'historyRefusalContractSha256', 'doc/integration/timeline-ha9b-history-refusals-api.md'],
 ];
 for (const [revision, checksum, path] of contracts) {
   if (manifest[revision] === undefined) continue;

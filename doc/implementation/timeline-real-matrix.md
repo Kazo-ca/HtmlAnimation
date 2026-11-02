@@ -1,10 +1,54 @@
 <!-- doc/implementation/timeline-real-matrix.md -->
 # Real Timeline verification — Designer consumer matrix
 
-Reference HA-REAL-MATRIX-001/r3, 2026-10-31. This is a consumer evidence record and
+Reference HA-REAL-MATRIX-001/r4, 2026-11-01. This is a consumer evidence record and
 API request; it does not amend HA-TL-001/r2 or claim a delivered shared signature.
 
-## Current installed HA9 reference — consumer verification ongoing
+## Current installed HA9B reference — consumer verification ongoing
+
+Functional reference `6d19da1f75af53e902b86164ce4cfb8003cef465` includes HA8 atomic
+transactions, HA9 prepared rendering, HA10 final-candidate conflicts and the
+`HA9-HISTORY-REFUSALS/1` supplement. All three archives were installed together after
+the preceding test run ended. Their hashes, installed public manifests/ESM and all four
+copied contract checksums pass verification; runtime is deduplicated. Previous immutable
+vendor checkpoints are retained.
+
+The two unchanged public backend refusal regressions now pass with the precise reasons
+`Permission undo refusée` and `Permission redo refusée`. Only the fault-accessor test seam
+needed the new additive `resolveHtmlConflict` method delegated to its genuine instance.
+No expected refusal, timeout or retry policy was weakened. Full consumer validation of
+this reference is recorded below as it executes; provider test counts are not our evidence.
+
+Fifteen editable-file journeys and three explicit spatial-unavailability checks passed
+across Chromium/Firefox/WebKit with CI=1, workers=2 and retries=0. These cover native
+download, unsupported-source validation, invalid-file refusal, root reset and the complete
+A/B/open/edit/undo/redo chain with source journal and metadata. All 693 unit/integration
+tests pass, including the 26 native opening cases. See `editable-project.md` for the
+initial browser failures, their fixes and the exact PR record of final full validation.
+
+The broader final-candidate conflict API is installed but the general bridge mapping is
+still separate work. Shared source-relative spatial mapping remains unavailable. These
+packages are local unpublished archives, not an assumption about a registry release.
+
+The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
+
+| Current genuine consumer path | Evidence exercised in this lot | Explicit boundary |
+| --- | --- | --- |
+| Authoring capture | Native keys, retained curve sources/transitions/easings, context, net journal and metadata; no sampling/load/history mutation | Editable envelope only; no playback export implied. |
+| Source reattachment | Trusted host source at its actual Full XPath location, raw null/empty expectations, root attributes and a new animated ID applied from the journal | Host supplies original HTML/CSS and stable resource revision again. |
+| Same-history project opening | Original A nodes/listeners/owner preserved through B and back; old attribute and key commands still undo/redo; B settings/time remain coherent | Private root-layer workshop mapping; unsupported groups/gradient identities refuse before mutation. |
+| Opening compensation | Partial mount, Root adoption and renderer failures restore exact nodes/parents, authoring data, context, journal, owner, policy and redo | Irrecoverable compensation is a persistent fault, never a clean rejection. |
+| Replay resource guards | Mount/render invalidation on undo/redo, active A independent of unavailable B, including no CSS projection | No obsolete UI confirmation reused for replay. |
+| Files and source journal UI | Real downloads, read-only validation, explicit open/undo/redo, source metadata retained, fresh workshop root reset | Demo catalogue contains its three source fixtures only. |
+| General CSS, groups and conflict A | Reusable controls/simulations; HA10 public API is present in installed packages | Full genuine bridge mapping remains next work. |
+| Shared spatial projection and outputs | Existing simulations and explicit genuine unavailable states | No real source-relative mapping or faithful JSON/JS/CSS playback export claim. |
+
+Native project-opening tests use the installed packages and public fault seams. The
+separate `project-rehydration` tests use a simulated host and prove only the reusable
+participant. Final ordinary gate results and exact CI head are reported in the editable
+project PR; the early targeted browser counts above are not a full-product completion.
+
+## Previous installed HA9 reference — historical evidence
 
 Functional reference `c340203e50ac84f5fb58e8f9e60dc83f3c2bdf56`, contracts
 `HA8-TRANSACTIONS/1` and `HA9-HOST-RENDER/1`. The three archives are dev-only local
