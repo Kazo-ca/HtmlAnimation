@@ -12,8 +12,9 @@ The interface is in French. Requires Node.js 24+ and npm 11+.
 
 The functional batches provide inspection, synchronized selection, selection/test modes,
 explicit first-edit targeting, property edits, shared undo/redo, original ID/class change tracking
-with Full XPath, and temporary style preview. **No real JsAnimationTimeline version is integrated.**
-The shipped demo uses recorded samples and a deliberately limited test fixture.
+with Full XPath, and temporary style preview. The main demo uses clearly labelled
+recorded simulations. A separate genuine package workshop is available;
+full real integration remains in progress against pinned local Timeline archives.
 Batch 2 adds move, dimensions, rotation, scale, compensated pivot, grid/alignment aids,
 pointer/keyboard interaction and one undo per multi-property gesture.
 
@@ -24,6 +25,7 @@ npm run build:demo
 npm exec playwright install chromium firefox webkit
 npm run lint
 npm run typecheck
+npm run check:timeline-artifacts
 npm run test:coverage
 npm run check:packages
 CI=1 npm run test:e2e
@@ -70,6 +72,31 @@ preserve the decision. Other scenarios demonstrate an explicitly announced start
 key and a decision made stale by changed simulated contributions. These diagnostics
 and samples are simulations; no real Timeline connection is claimed.
 
+Use **Atelier des dégradés** for independent type, geometry, color, opacity, position
+and presence tracks. Select a point in its bar or scene handles; Escape discards a
+gesture and one undo restores a compound edit. Structural addition/removal and their
+history are demonstrated with the simulation. Crossed points preserve their IDs and
+render sorted by evaluated position.
+
+The [genuine package workshop](http://127.0.0.1:43127/timeline-real.html) uses the three
+immutable HA9B archives recorded in `vendor/timeline/manifest.json`. It exercises runtime
+hold, direct seeks, component gestures, real structural point addition, first opacity
+object creation and ID/class effects with shared history. General CSS and the existing
+r3 element-geometry mapping remain explicit limits. Prepared host rendering now exposes
+the committed preview to backend observers before notifications. Public undo/redo refusal
+reasons pass their genuine regression tests; full-product conformity is still separate.
+See [the real evidence matrix](doc/implementation/timeline-real-matrix.md) for limits.
+
+In that genuine workshop, **Enregistrer le projet** downloads native editable data,
+context and the net original-document journal. Choose a file, then **Ouvrir le projet**
+to restore it in the same undo history. The host provides the original HTML/CSS again;
+this demo knows only its three gradient source fixtures. Unknown sources remain unopened.
+Checking a file alone changes no project. The versioned codec is reusable without Timeline;
+the private native capture/opening examples and limits are in
+[the persistence record](doc/implementation/editable-project.md).
+The workshop's **Exemple conique · image 50** link downloads a reusable genuine saved
+fixture. Choose that file, open it, then seek to frame 50 to inspect its saved angle.
+
 ## Consumer API
 
 ```ts
@@ -97,7 +124,7 @@ designer.on('propertychange', ({ property, oldValue, newValue, frame }) => {
 ```
 
 `createHostAdapter` is application-provided; its local proposed interface is documented
-in [HA-ADAPTER-001/r3](doc/implementation/adapter-contract.md). It is **not** an existing
+in [HA-ADAPTER-001/r5](doc/implementation/adapter-contract.md). It is **not** an existing
 JsAnimationTimeline API. No fake is exported from the three libraries. Build outputs
 include ESM, declarations, CSS and the existing GPL-2.0 license. Package names are
 provisional; nothing has been published.
@@ -107,3 +134,4 @@ Read [the production plan](doc/implementation/plan.md),
 [product handoff](doc/integration/README.md) before extending the implementation.
 Geometry delivery and support limits are documented in [geometry batch status](doc/implementation/geometry-batch.md).
 Explicit conflict decisions are documented in [batch 3a](doc/implementation/conflict-resolution.md).
+Independent gradients are documented in [batch 3b](doc/implementation/gradient-tracks.md).

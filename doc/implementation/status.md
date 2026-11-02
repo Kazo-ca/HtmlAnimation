@@ -5,6 +5,9 @@ Historical batch 1 record. See `geometry-batch.md` for the current batch 2 behav
 HA-TL-001/r2 references, validation scope and remaining API gaps.
 See `node-selection.md`, `css-property-editors.md` and `conflict-resolution.md`
 for subsequent selection, CSS-control and batch 3a delivery records.
+See `gradient-tracks.md` and `timeline-real-matrix.md` for batch 3b and its limited
+genuine HA7 package verification. Those results do not close full Timeline conformity
+or the remaining persistence/reload/export batches.
 
 2026-10-30. Branch: `codex/designer-foundation`. Consumed documents:
 HA-DESIGN-001/r1, HA-TL-001/r1. Original handoff content is preserved byte-for-byte.

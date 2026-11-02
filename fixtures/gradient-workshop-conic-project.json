@@ -1,0 +1,257 @@
+{
+  "format": "html-animation-project",
+  "version": 1,
+  "source": {
+    "id": "gradient-workshop-conic",
+    "revision": "source-v1"
+  },
+  "timeline": {
+    "version": "2.0.0",
+    "settings": {
+      "fps": 24,
+      "totalFrames": 100
+    },
+    "layers": [
+      {
+        "id": "gradientObject",
+        "type": "layer",
+        "name": "#gradient-box",
+        "target": {
+          "selector": "#gradient-box"
+        },
+        "spans": [],
+        "propertyTimelines": {
+          "gradientChannel2": {
+            "initialValue": {
+              "kind": "number",
+              "value": 90
+            },
+            "keys": [
+              {
+                "frame": 50,
+                "value": {
+                  "kind": "number",
+                  "value": 55
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "htmlContext": {
+    "version": 1,
+    "gradients": {
+      "gradientObject": [
+        {
+          "id": "main",
+          "cssName": "background-image",
+          "type": "conic",
+          "angle": 90,
+          "centerX": 50,
+          "centerY": 50,
+          "radiusX": 50,
+          "radiusY": 50,
+          "stops": [
+            {
+              "id": "first",
+              "color": {
+                "kind": "color",
+                "r": 0.12,
+                "g": 0.38,
+                "b": 0.3,
+                "a": 1
+              },
+              "opacity": 1,
+              "position": 0,
+              "present": true
+            },
+            {
+              "id": "reserved",
+              "color": {
+                "kind": "color",
+                "r": 0.8,
+                "g": 0.2,
+                "b": 0.3,
+                "a": 1
+              },
+              "opacity": 1,
+              "position": 25,
+              "present": false
+            },
+            {
+              "id": "middle",
+              "color": {
+                "kind": "color",
+                "r": 0.95,
+                "g": 0.7,
+                "b": 0.25,
+                "a": 1
+              },
+              "opacity": 1,
+              "position": 50,
+              "present": true
+            },
+            {
+              "id": "last",
+              "color": {
+                "kind": "color",
+                "r": 0.2,
+                "g": 0.35,
+                "b": 0.7,
+                "a": 1
+              },
+              "opacity": 1,
+              "position": 100,
+              "present": true
+            }
+          ]
+        }
+      ]
+    },
+    "bindings": {
+      "gradientObject": {
+        "gradientChannel1": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "type"
+        },
+        "gradientChannel2": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "angle"
+        },
+        "gradientChannel3": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "centerX"
+        },
+        "gradientChannel4": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "centerY"
+        },
+        "gradientChannel5": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "radiusX"
+        },
+        "gradientChannel6": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "radiusY"
+        },
+        "gradientChannel7": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "color",
+          "stopId": "first"
+        },
+        "gradientChannel8": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "opacity",
+          "stopId": "first"
+        },
+        "gradientChannel9": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "position",
+          "stopId": "first"
+        },
+        "gradientChannel10": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "present",
+          "stopId": "first"
+        },
+        "gradientChannel11": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "color",
+          "stopId": "reserved"
+        },
+        "gradientChannel12": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "opacity",
+          "stopId": "reserved"
+        },
+        "gradientChannel13": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "position",
+          "stopId": "reserved"
+        },
+        "gradientChannel14": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "present",
+          "stopId": "reserved"
+        },
+        "gradientChannel15": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "color",
+          "stopId": "middle"
+        },
+        "gradientChannel16": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "opacity",
+          "stopId": "middle"
+        },
+        "gradientChannel17": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "position",
+          "stopId": "middle"
+        },
+        "gradientChannel18": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "present",
+          "stopId": "middle"
+        },
+        "gradientChannel19": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "color",
+          "stopId": "last"
+        },
+        "gradientChannel20": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "opacity",
+          "stopId": "last"
+        },
+        "gradientChannel21": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "position",
+          "stopId": "last"
+        },
+        "gradientChannel22": {
+          "kind": "gradient",
+          "gradientId": "main",
+          "component": "present",
+          "stopId": "last"
+        }
+      }
+    }
+  },
+  "documentChanges": [
+    {
+      "fullXPath": "/html/body/div/div[2]/main/div/div/section/div/div[2]",
+      "attribute": "id",
+      "oldValue": "gradient-peer",
+      "newValue": "saved-peer"
+    }
+  ],
+  "provenance": {
+    "kind": "real",
+    "adapterRevision": "HA-ADAPTER-001/r6",
+    "timelineReference": "6d19da1f75af53e902b86164ce4cfb8003cef465"
+  }
+}

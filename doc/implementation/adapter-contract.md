@@ -1,15 +1,17 @@
 <!-- doc/implementation/adapter-contract.md -->
-# HA-ADAPTER-001 — local consumer boundary, revision 3
+# HA-ADAPTER-001 — local consumer boundary, revision 6
 
-Date: 2026-10-30. Consumes HA-TL-001/r2 and HA-DESIGN-001/r1 unchanged.
-Status: **proposal implemented and tested with a simulation only**. This document
+Date: 2026-10-31. Consumes HA-TL-001/r2 and HA-DESIGN-001/r1 unchanged.
+Status: **local proposal; simulations plus an in-progress private HA9 bridge**. This document
 does not amend a shared Timeline guarantee or claim a published Timeline signature.
 Changes to this boundary require a revision and migration notes. Changes to the shared
 contract must separately follow the revision/copy process in `doc/integration/README.md`.
 
 The host gives `HtmlDesigner` its original Timeline instance and an adapter factory.
 Types live in `packages/designer/src/timeline-adapter.ts`. The revision 1 document
-is archived as `adapter-contract-r1.md`; revision 2 is in `adapter-contract-r2.md`.
+is archived as `adapter-contract-r1.md`; revisions 2 and 3 are in
+`adapter-contract-r2.md`, `adapter-contract-r3.md`, `adapter-contract-r4.md` and
+`adapter-contract-r5.md`.
 Existing r1/r2 adapters remain accepted;
 the declared shared revision is a consumed document reference, not a conformity claim.
 
@@ -22,7 +24,7 @@ It does not add temporal evaluation, a second history or a real Timeline mapping
 | `kind`, `contractRevision` | Declare `simulation`/`real` and consumed shared revision (r1 or r2). |
 | `getState()` | Read frame 1..N, duration, stable object IDs/selectors, selected object, evaluated values, history availability. No mutation. Values describe each object's own properties before HTML specificity resolution. |
 | `execute(label, writes, effect?)` | One atomic public command; each write carries object ID, selector, property, value, frame. A new target object and its first key are one command. Optional HTML effect participates in the same history. |
-| result | `changed`, `unchanged`, or `rejected` plus French user-facing reason. A rejected transaction applies neither writes nor HTML effects. |
+| result | `changed`, `unchanged`, `rejected` or `faulted`. The latter two retain a French user-facing reason. Rejection guarantees no effects; fault means compensation is uncertain and editing/history must stop. |
 | `effect.redo/undo` | The adapter applies the effect and temporal changes atomically and rolls back both if a command fails. It retains the effect as part of history; never silently replaces the whole temporal document to emulate editing. |
 | `undo/redo()` | Restore keys, target creation, effects and evaluated preview coherently. |
 | `selectObject()` | Selection only; no animation mutation. |
@@ -131,6 +133,97 @@ policy, preserve HA4 context signatures, supply authoritative diagnostics and in
 host context effects into shared history through public APIs. HA4 documentation alone
 does not verify that mapping. No real TL-C14 conformity is claimed.
 
+## Independent structured gradients (r4)
+
+`TimelineAdapter.gradients` is optional; its consumer types live in `gradient-types.ts`.
+`read(objectId)` returns a detached snapshot with original `definitions`, evaluated
+`gradients`, explicit component `tracks`, opaque revision and capability diagnostics.
+`canAddStop:false` independently disables structural creation while supported component
+fields remain usable. The host supplies the initial structure; no arbitrary CSS parser
+or temporal evaluator is added to the Designer.
+
+Each stable gradient/point ID addresses type, angle, center, radii, opaque normalized
+sRGB color, independent opacity, position or presence. A removed point remains in the
+structure and retains its other channels. Crossed points render sorted by evaluated
+position, ties by structural order; the saved structure and IDs never change order.
+
+`compose(request)` is pure static composition for a gesture draft. `execute(request,
+isCurrent)` validates revision, frame, selection/lifecycle and target membership before
+and after callbacks, then commits context/bindings and keys in one shared history entry.
+Its accepted-change receipt is detached and captured **before** backend notifications;
+the Designer must not infer accepted values by rereading after a callback seeks or undoes.
+Duplicate component addresses are refused. A new point has initial presence false and
+four explicit current-frame writes; no earlier key or fade is invented.
+
+Public methods: `getGradientState`, `editGradient`, `addGradientStop`,
+`removeGradientStop`, `selectGradient`, `beginGradientGesture`, `previewGradient`,
+`commitGradientGesture`, `cancelGradientGesture`. Drafts create no key, history entry
+or edit event; context changes cancel them. Raw `background`/`background-image` edits
+are refused when structured channels own that background, pending explicit conflict
+resolution. Single-element handles share selected point identity with the panel;
+unsupported origin/crop/transform/attachment contexts keep fields and explain the limit.
+
+The r4 checkpoint's private bridge used pinned HA7 packages and refused structural/host
+effects. The current bridge is moving to the verified public HA8 inspection stage and
+atomic transaction surface. Its consumer verification, supported subset and remaining
+render-notification gap are explicit in `ha8-transactions.md` and
+`timeline-real-matrix.md`. Installing the provider's implementation does not certify
+the adapter or complete the product's remaining mappings.
+
+## Persistent compensation faults (r4)
+
+`MutationResult` and `GradientMutationResult` preserve `faulted` and its message.
+`TimelineState.fault` optionally exposes a host fault. An unexpected exception from an
+executing command/history operation is conservatively treated as uncertain, rather than
+as an ordinary no-effects rejection. `getFault()` returns the first latched diagnostic.
+`fault` is emitted once; editing, drafts and undo/redo remain disabled for this instance.
+Selection and frame inspection do not clear it. Recreate the Designer with a coherently
+recovered host; omitting `fault` from a later snapshot does not silently rearm editing.
+
+Success notifications are deferred until the command returns an accepted result.
+An uncertain ID/class effect clears pending success events without claiming the source
+was restored. The visible journal is marked uncertain. This local fault path does not
+invent a public HA8 signature or certify a decorated stage participant.
+
+## Prepared host participation (r5)
+
+`ReversibleEffect.prepare(direction)` optionally returns `PreparedEffect` with
+`changed`, `apply()` and `rollback()`. Preparation is pure and captures the exact current
+participant state. Rollback compensates even a partially applied action without
+executing a new user intent. The existing `redo/undo` remain for older adapters;
+the real bridge explicitly refuses effects without prepared support and maps the
+prepared shape to the installed public `IHostHistoryEffect`.
+
+The Designer's ID/class participant captures raw attribute presence/value, net journal,
+pending document notification, deferred notifications, target and legacy first-execution
+flag. It restores all captured values on compensation. Preparation revalidates source
+availability, expected raw value and ID uniqueness; it does not overwrite an external
+source change. Undo/redo use the actual direction, original XPath and one shared backend
+history. Failed preparation preserves the earlier redo stack. No second history or
+`load(document)` replacement is introduced.
+
+## Prepared shared preview ownership (r6)
+
+Optional `TimelineAdapter.preview` supplies a `DomPreviewOwner` constructed over the
+same scene before the native Editor is initialized. The owner captures source CSS and
+original XPath before any evaluated preview. The genuine HA9 `hostRenderer` prepares
+and applies the authoritative per-element projection inside Timeline's atomic boundary.
+The Designer observes that committed projection; synchronous backend observers therefore
+see the committed DOM without relying on a later Designer callback to render it.
+
+`prepare`, `prepareDraft` and `prepareRestore` capture exact compensation state and
+return the r5 prepared-effect shape. `withSource` temporarily suspends owned declarations
+for trusted synchronous read-only source inspection, then reinstates the exact preview.
+Element identity is retained; declaration containers are detached. Explicit gesture drafts
+share this owner and do not create keys, journal entries or accepted-edit events.
+Disposing the Designer removes its local draft; destroying the native host restores source.
+
+An adapter without `preview` retains the earlier Designer-owned projection. The optional
+owner imports no Timeline implementation. Shared-owner r3 spatial controls are explicitly
+unavailable until their source-relative mapping is delivered and verified; they are not
+silently projected as native absolute properties. This revision does not certify project
+opening, all native CSS/group mappings or full Timeline conformity.
+
 ## Designer observations and document changes
 
 - `selectionchange`: current elements and optional associated object ID. No edits.
@@ -145,6 +238,9 @@ does not verify that mapping. No real TL-C14 conformity is claimed.
   through this event so they cannot interrupt a committed command or its undo.
 - `resolutionchange`: complete detached saved resolutions and history direction.
   No notification for open/cancel, selection, frame changes, no-op or refusal.
+- `gradientchange`: detached original definitions and history direction when structure
+  changes. Component key edits are `propertychange`, not original DOM changes.
+- `fault`: the first persistent uncertain-state diagnostic; no success is implied.
 
 The host owns source persistence and coordinates external DOM/CSS mutations. Preview
 restoration touches only driven properties and preserves unrelated live inline styles.
