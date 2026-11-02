@@ -13,6 +13,7 @@ import type { ElementProjection } from '../packages/designer/src/dom-preview.js'
 import artifactManifest from '../vendor/timeline/manifest.json';
 import { propertyMapping } from './css-mappings.js';
 import type { PropertyMapping } from './css-mappings.js';
+import { createConflictCapability } from './conflict-bridge.js';
 
 export interface ProjectRenderPolicy {
     readonly active: (() => void) | null;
@@ -343,18 +344,20 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         try { clock.advance(0); return outcome; }
         catch (error) { return latchFault(error); }
     };
-    const transact = (request: IEditorTransactionRequest): MutationResult => {
+    /** One native transaction kind at a time, with the shared refusal, fault latch and flush. */
+    const run = (execute: () => EditorTransactionResult): MutationResult => {
         const reason = refusal(); if (reason) return reason;
         running++; receivedTransaction = false;
         try {
             let outcome: MutationResult;
             try {
-                outcome = mappedResult(editor.transactions.execute(request));
+                outcome = mappedResult(execute());
                 if (outcome.status === 'faulted') outcome = latchFault(new Error(outcome.message));
             } catch (error) { outcome = latchFault(error); }
             return flush(outcome);
         } finally { running--; }
     };
+    const transact = (request: IEditorTransactionRequest): MutationResult => run(() => editor.transactions.execute(request));
     const history = (direction: 'undo' | 'redo'): MutationResult => {
         const reason = refusal(); if (reason) return reason;
         running++; receivedTransaction = false;
@@ -478,6 +481,7 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
     };
     const adapter: TimelineAdapter = {
         kind: 'real', contractRevision: 'HA-TL-001/r2', get preview() { return owner; },
+        conflicts: createConflictCapability({ stage, findLayer, revision, run, resolveHtmlConflict: request => editor.transactions.resolveHtmlConflict(request) }),
         getState: () => disposed ? { ...lastState, canUndo: false, canRedo: false } : getState(),
         gradients: {
             read,

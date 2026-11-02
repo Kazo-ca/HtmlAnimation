@@ -193,7 +193,7 @@ export class HtmlDesigner<T = unknown> {
     const snapshot = this.getConflictState(); const diagnostic = snapshot?.diagnostics.find(candidate => candidate.id === id);
     if (!snapshot || !diagnostic) return;
     this.conflictsUi.render(snapshot);
-    this.pendingConflict = { id, signature: diagnostic.signature, revision: snapshot.revision, epoch: this.contextEpoch, targetsCurrent: guardConflictTargets(this.scene, snapshot) };
+    this.pendingConflict = { id, signature: diagnostic.signature, revision: snapshot.revision, epoch: this.contextEpoch, targetsCurrent: guardConflictTargets(this.scene, snapshot, this.adapter.preview) };
     this.conflictsUi.open(id, this.adapter.getState().selectedObjectId);
   }
   public resolveConflict(id: string, choiceId: string): MutationResult {
@@ -207,7 +207,7 @@ export class HtmlDesigner<T = unknown> {
     const epoch = pending?.epoch ?? this.contextEpoch;
     const revision = pending?.revision ?? snapshot.revision;
     const signature = pending?.signature ?? diagnostic.signature;
-    const targetsCurrent = pending?.targetsCurrent ?? guardConflictTargets(this.scene, snapshot);
+    const targetsCurrent = pending?.targetsCurrent ?? guardConflictTargets(this.scene, snapshot, this.adapter.preview);
     const frame = this.adapter.getState().frame;
     const isCurrent = (): boolean => !this.disposed && this.contextEpoch === epoch && this.adapter.getState().frame === frame && capability.read().revision === revision && targetsCurrent();
     if (pending && pending.id !== id || !isCurrent()) { this.cancelConflict(); return this.reject('Le contexte a changé. Ouvrez une nouvelle résolution.'); }

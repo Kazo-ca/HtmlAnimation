@@ -86,6 +86,12 @@ const mappings: ReadonlyMap<string, PropertyMapping> = new Map<string, PropertyM
     ...Object.entries(logicalBorderStyles).map(([cssName, property]): [string, PropertyMapping] => [cssName, { property, binding: { kind: 'style', cssName }, valueKind: 'text', parse: borderStyle }]),
 ]);
 
+/** Display text of a typed value for announced writes; the typed value stays authoritative. */
+export function formatCssText(value: TimelinePropertyValue): string {
+    if (value.kind !== 'color') return String(value.value);
+    const [r, g, b] = [value.r, value.g, value.b].map(channel => Math.round(channel * 255));
+    return value.a === 1 ? `rgb(${r} ${g} ${b})` : `rgb(${r} ${g} ${b} / ${value.a})`;
+}
 /** Own entries only: inherited object names never become mappings. */
 export function propertyMapping(cssName: string): PropertyMapping | undefined {
     return mappings.get(cssName);

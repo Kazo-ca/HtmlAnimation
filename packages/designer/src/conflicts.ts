@@ -18,14 +18,22 @@ export function copyConflictSnapshot(snapshot: ConflictSnapshot): ConflictSnapsh
     resolutions: snapshot.resolutions.map(resolution => ({ ...resolution })),
   };
 }
-export function guardConflictTargets(scene: HTMLElement, snapshot: ConflictSnapshot): () => boolean {
-  const targets = [...new Set(snapshot.diagnostics.flatMap(diagnostic => [...diagnostic.targets, ...diagnostic.affectedTargets]))].map(selector => ({
+/** Source reader of a shared preview owner: committed preview styles are not source changes. */
+export interface ConflictSourceReader { withSource<T>(read: () => T): T }
+export function guardConflictTargets(scene: HTMLElement, snapshot: ConflictSnapshot, source?: ConflictSourceReader): () => boolean {
+  const read = <T>(action: () => T): T => source ? source.withSource(action) : action();
+  const targets = read(() => [...new Set(snapshot.diagnostics.flatMap(diagnostic => [...diagnostic.targets, ...diagnostic.affectedTargets]))].map(selector => ({
     selector, elements: resolveTarget(scene, selector).map(element => ({ element, id: element.getAttribute('id'), classes: element.getAttribute('class'), style: element.getAttribute('style') })),
-  }));
-  return () => targets.every(target => {
-    const current = resolveTarget(scene, target.selector);
-    return current.length === target.elements.length && target.elements.every((entry, index) => current[index] === entry.element && entry.element.getAttribute('id') === entry.id && entry.element.getAttribute('class') === entry.classes && entry.element.getAttribute('style') === entry.style);
-  });
+  })));
+  // A guard answers; it never throws into an adapter's final confirmation.
+  return () => {
+    try {
+      return read(() => targets.every(target => {
+        const current = resolveTarget(scene, target.selector);
+        return current.length === target.elements.length && target.elements.every((entry, index) => current[index] === entry.element && entry.element.getAttribute('id') === entry.id && entry.element.getAttribute('class') === entry.classes && entry.element.getAttribute('style') === entry.style);
+      }));
+    } catch { return false; }
+  };
 }
 /** Chooses among already evaluated values only; never evaluates a key/transition. */
 export function conflictWinner(snapshot: ConflictSnapshot | null, scene: HTMLElement, element: HTMLElement, property: string, frame: number, candidates: readonly ProjectionCandidate[]): ProjectionCandidate | undefined {
