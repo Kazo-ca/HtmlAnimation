@@ -87,8 +87,12 @@ scale, pivot) to explicit `spatial*` aliases with `spatial` bindings. HA4 builti
   `readHtmlSpatialValue` and group-source capture are not public.
 - Groups must share one demonstrable source. Rendering passes `resolveHtmlSpatialBindings`
   results to `composeHtmlDeclarations`.
-- The Designer's own fields and handles still refuse geometry while a shared preview
-  exists. Enabling them is the next step.
+- Shared-geometry lot (branch `codex/shared-geometry`, stacked on HA11): the adapter
+  declares `spatialGeometry`, so the Designer's geometry fields are enabled with the
+  shared preview. Their values come from the adapter's evaluated spatial tracks, never
+  from a preview readout. A field edit, or a compound field command, is one undoable
+  write. Canvas handles still refuse explicitly and point to the fields, because a live
+  gesture preview through the shared owner is separate work.
 
 These packages are local unpublished archives, not an assumption about a registry release.
 
@@ -105,7 +109,7 @@ The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
 | Recursive inventory, targets and class groups | Genuine nested folders, nested gradient owners, class-group first edits, multi-target single undo and early refusals (`timeline-general-adapter.test.ts`) | Writes are mapped explicitly through the CSS mapping table. |
 | Atomic CSS | Genuine opacity, color and logical border-style keys with typed source bases, aliases, group bases, compound single undo and early refusals (`timeline-css-atomic.test.ts`) | Other CSS declarations, named colors and r3 spatial adjustments stay explicitly unmapped. |
 | HA10 conflicts and choice A | Genuine priority decision, choice A with its announced key, one undo/redo, stale revision/signature/choice/guard refusals, canonical ID-over-class, aliased CSS name and the Designer path (`timeline-ha10-conflicts.test.ts`) | No browser journey yet; `before-first` policies are mapped generically but no native fixture produced one. |
-| HA11 spatial projection (bridge) | Genuine translate/rotate/scale/pivot keys, source capture and authored suffix, pivot base, compound single undo, unit refusal and group-source refusal (`timeline-ha11-spatial.test.ts`) | Designer fields/handles still refuse with the shared preview; no sourceTransform capture track or explicit conversion UI yet. |
+| HA11 spatial projection (bridge) | Genuine translate/rotate/scale/pivot keys, source capture and authored suffix, pivot base, compound single undo, unit refusal and group-source refusal (`timeline-ha11-spatial.test.ts`) | Designer geometry fields write these keys (`shared-geometry-designer.test.ts`, two genuine browser journeys); canvas handles still refuse with the shared preview; no sourceTransform capture track or explicit conversion UI yet. |
 | Outputs | Existing simulations | No faithful JSON/JS/CSS playback export claim. |
 
 Native project-opening tests use the installed packages and public fault seams. The

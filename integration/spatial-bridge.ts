@@ -1,5 +1,5 @@
 // integration/spatial-bridge.ts
-import type { HtmlSpatialBinding, HtmlSpatialCoordinate, HtmlSpatialLengthUnit, IHtmlSpatialDefinition, IHtmlSpatialSourceCapture, TimelinePropertyValue } from '@kazo-ca/timeline-runtime';
+import type { HtmlPropertyBinding, HtmlSpatialBinding, HtmlSpatialCoordinate, HtmlSpatialLengthUnit, IHtmlSpatialDefinition, IHtmlSpatialSourceCapture, TimelinePropertyValue } from '@kazo-ca/timeline-runtime';
 
 /** Layer-local projection identity; identical ids never prove two sources compatible. */
 export const spatialProjectionId = 'geometry';
@@ -54,6 +54,19 @@ export function parseSpatialWrite(component: SpatialComponent, text: string, tra
     return { property, binding: { kind: 'spatial', projectionId: spatialProjectionId, component, unit }, value: value(parsed.number) };
 }
 export function spatialAlias(component: SpatialComponent): string { return aliases[component]; }
+/** Fixed-point text the Designer accepts back: six decimals at most, never an exponent. */
+function fieldNumber(value: number): string {
+    const text = value.toFixed(6).replace(/\.?0+$/, '');
+    return text === '-0' ? '0' : text;
+}
+/** Designer field text of evaluated spatial tracks, keyed by geometry property name. */
+export function spatialFieldValues(bindings: Readonly<Record<string, HtmlPropertyBinding>>, values: Readonly<Record<string, TimelinePropertyValue>>): Readonly<Record<string, string>> {
+    return Object.fromEntries(Object.entries(bindings).flatMap(([property, binding]) => {
+        const value = values[property];
+        if (binding.kind !== 'spatial' || value?.kind !== 'number' || !isSpatialComponent(binding.component)) return [];
+        return [[binding.component, `${fieldNumber(value.value)}${'unit' in binding ? binding.unit : ''}`]];
+    }));
+}
 
 const originMessage = 'L’origine de transformation source n’est pas prise en charge ; une source explicite est nécessaire.';
 /** Whitespace-separated tokens at parenthesis depth zero, so calc()/var() stay whole. */

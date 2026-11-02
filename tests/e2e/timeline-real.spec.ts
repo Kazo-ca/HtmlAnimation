@@ -76,11 +76,25 @@ test('genuine radial center gesture previews and commits two keys as one undo ac
   await expect(panel(page).getByLabel('Centre Y du dégradé', { exact: true })).toHaveValue('50');
 });
 
-test('genuine structural addition is available while the unmapped spatial model is visibly refused', async ({ page }) => {
+test('genuine structural addition and HA11 geometry fields are available without a field diagnostic', async ({ page }) => {
   await load(page); await expect(panel(page).getByRole('button', { name: 'Ajouter un point', exact: true })).toBeEnabled();
-  const rotation = page.locator('#real-properties input[data-property="rotation"]'); await expect(rotation).toBeDisabled();
-  await expect(page.locator('#real-properties .CssPropertiesPanel')).toContainText('Les poignées géométriques ne sont pas encore disponibles avec l’aperçu partagé.'); expect(await keys(page)).toBe(0);
+  const rotation = page.locator('#real-properties input[data-property="rotation"]'); await expect(rotation).toBeEnabled(); await expect(rotation).toHaveValue('0deg');
+  await expect(page.locator('#real-properties .CssPropertiesPanel')).not.toContainText('Les poignées géométriques ne sont pas encore disponibles avec l’aperçu partagé.'); expect(await keys(page)).toBe(0);
   const hasTimelineService = await page.locator('#real-timeline .JsTimeLine').count(); expect(hasTimelineService).toBeGreaterThan(0);
+});
+
+test('genuine rotation field records a source-relative HA11 key in the shared history', async ({ page }) => {
+  await load(page); await seek(page, 40); const before = await project(page); const box = page.locator('#real-scene #gradient-box');
+  const rotation = page.locator('#real-properties input[data-property="rotation"]'); await rotation.fill('20deg'); await rotation.press('Tab');
+  const saved = await project(page); const layer = saved.timeline.layers.find(candidate => candidate.id === 'gradientObject');
+  if (!layer || layer.type !== 'layer') throw new Error('Missing gradient layer');
+  expect(layer.propertyTimelines?.spatialRotation?.keys).toEqual([{ frame: 40, value: { kind: 'number', value: 20 } }]);
+  expect(saved.html.bindings?.gradientObject?.spatialRotation).toEqual({ kind: 'spatial', projectionId: 'geometry', component: 'rotation', unit: 'deg' });
+  expect(saved.html.spatial?.gradientObject?.[0]).toMatchObject({ composition: 'prepend-trs', version: 1 });
+  await expect(box).not.toHaveCSS('transform', 'none'); await expect(rotation).toHaveValue('20deg');
+  await page.locator('#real-undo').click(); expect(await project(page)).toEqual(before); await expect(box).toHaveCSS('transform', 'none'); await expect(rotation).toHaveValue('0deg');
+  await page.locator('#real-redo').click(); expect(await project(page)).toEqual(saved); await expect(rotation).toHaveValue('20deg');
+  await expect(page.getByRole('region', { name: 'Modifications du document original' })).toContainText('Document original inchangé');
 });
 
 test('genuine structural point creation shares one history entry with bindings and four current-frame keys', async ({ page }) => {
