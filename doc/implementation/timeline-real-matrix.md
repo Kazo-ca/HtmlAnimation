@@ -35,6 +35,19 @@ undo. Writes still use an explicit property mapping table and remain opacity-onl
 the atomic CSS lot. Opening refuses only a gradient whose owner is not a selector layer.
 Timeline's own refusal of an absent target is kept unchanged.
 
+Atomic CSS lot (2026-11-02, branch `codex/atomic-css`, stacked on the general adapter):
+`integration/css-mappings.ts` maps opacity, color and the four logical border-style
+longhands. Hyphenated declarations use explicit stable aliases such as
+`borderBlockStartStyle` with an explicit style binding; nothing is inferred from a
+camelCase name. A declared or inferable binding takes its base from Timeline inspection.
+A new alias reads each group member through the public `readHtmlPropertyBase` inside the
+preview owner's source window. The real context is never mutated, and divergent group
+bases are refused. Colors accept hexadecimal, `rgb()`/`rgba()` and `transparent`; named
+colors, variables and CSS-wide keywords are refused explicitly, because Timeline's
+internal parsers are not public. Several properties and targets commit as one command
+with one undo. Locked layers (directly or through a folder), duplicate declarations and
+implicit binding replacement are refused before mutation.
+
 The broader final-candidate conflict API is installed but its bridge mapping (HA10) is
 still separate work. Shared source-relative spatial mapping remains unavailable. These
 packages are local unpublished archives, not an assumption about a registry release.
@@ -49,8 +62,9 @@ The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
 | Opening compensation | Partial mount, Root adoption and renderer failures restore exact nodes/parents, authoring data, context, journal, owner, policy and redo | Irrecoverable compensation is a persistent fault, never a clean rejection. |
 | Replay resource guards | Mount/render invalidation on undo/redo, active A independent of unavailable B, including no CSS projection | No obsolete UI confirmation reused for replay. |
 | Files and source journal UI | Real downloads, read-only validation, explicit open/undo/redo, source metadata retained, fresh workshop root reset | Demo catalogue contains its three source fixtures only. |
-| Recursive inventory, targets and class groups | Genuine nested folders, nested gradient owners, class-group first edits, multi-target single undo and early refusals (`timeline-general-adapter.test.ts`) | Writes are mapped explicitly; only opacity until the atomic CSS lot. |
-| General CSS and conflict A | Reusable controls/simulations; HA10 public API is present in installed packages | Atomic CSS lot and HA10 mapping are the next work. |
+| Recursive inventory, targets and class groups | Genuine nested folders, nested gradient owners, class-group first edits, multi-target single undo and early refusals (`timeline-general-adapter.test.ts`) | Writes are mapped explicitly through the CSS mapping table. |
+| Atomic CSS | Genuine opacity, color and logical border-style keys with typed source bases, aliases, group bases, compound single undo and early refusals (`timeline-css-atomic.test.ts`) | Other CSS declarations, named colors and r3 spatial adjustments stay explicitly unmapped. |
+| Conflict A | Reusable controls/simulations; HA10 public API is present in installed packages | HA10 mapping is the next work. |
 | Shared spatial projection and outputs | Existing simulations and explicit genuine unavailable states | No real source-relative mapping or faithful JSON/JS/CSS playback export claim. |
 
 Native project-opening tests use the installed packages and public fault seams. The
