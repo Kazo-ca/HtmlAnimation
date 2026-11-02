@@ -103,7 +103,7 @@ function selectorOf(layer: ILayer | undefined): string | undefined {
 function matches(root: ParentNode, candidate: string): boolean {
     try { return root.querySelector(candidate) !== null; }
     catch (error) {
-        if (error instanceof DOMException && error.name === 'SyntaxError') throw new Error(`Le sélecteur « ${candidate} » n’est pas valide.`);
+        if (error instanceof DOMException && error.name === 'SyntaxError') throw new Error(`Le sélecteur « ${candidate} » n’est pas valide.`, { cause: error });
         throw error;
     }
 }
