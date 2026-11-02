@@ -67,8 +67,30 @@ The final revalidation sees Timeline's candidate, so the bridge reports the conf
 revision while it is confirming. The target guard now compares source attributes through
 the shared preview owner, because committed preview styles are not source changes.
 
-Shared source-relative spatial mapping remains unavailable. These
-packages are local unpublished archives, not an assumption about a registry release.
+HA11 lot (2026-11-02, branch `codex/ha11-spatial`, stacked on HA10): the verified
+HA11 checkpoint `2b920f1123458b2ddd80d5c726eb1b11047e1d82` is installed from
+`vendor/timeline/2b920f1…/`. Its archive SHA-256 values match the provider record, and
+`HA11-SPATIAL-PROJECTION/1` is verified with the four earlier contracts. On the new
+packages and before any consumer change, 722/722 tests and 264/264 browser journeys
+passed unchanged.
+
+`integration/spatial-bridge.ts` maps the Designer geometry writes (translate, rotation,
+scale, pivot) to explicit `spatial*` aliases with `spatial` bindings. HA4 builtins such as
+`rotation` keep their absolute meaning.
+- Each layer gets one `prepend-trs` projection captured from the source inside the
+  preview owner's source window. An authored inline value is preferred; otherwise the
+  computed value is used, with provenance recorded either way.
+- A track's unit is fixed by its first key, and a unit change is refused rather than
+  converted.
+- Bases come from the definition: identity for adjustments, the captured origin for a
+  pivot in the same unit, and an explicit refusal otherwise. The internal
+  `readHtmlSpatialValue` and group-source capture are not public.
+- Groups must share one demonstrable source. Rendering passes `resolveHtmlSpatialBindings`
+  results to `composeHtmlDeclarations`.
+- The Designer's own fields and handles still refuse geometry while a shared preview
+  exists. Enabling them is the next step.
+
+These packages are local unpublished archives, not an assumption about a registry release.
 
 The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
 
@@ -83,7 +105,8 @@ The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
 | Recursive inventory, targets and class groups | Genuine nested folders, nested gradient owners, class-group first edits, multi-target single undo and early refusals (`timeline-general-adapter.test.ts`) | Writes are mapped explicitly through the CSS mapping table. |
 | Atomic CSS | Genuine opacity, color and logical border-style keys with typed source bases, aliases, group bases, compound single undo and early refusals (`timeline-css-atomic.test.ts`) | Other CSS declarations, named colors and r3 spatial adjustments stay explicitly unmapped. |
 | HA10 conflicts and choice A | Genuine priority decision, choice A with its announced key, one undo/redo, stale revision/signature/choice/guard refusals, canonical ID-over-class, aliased CSS name and the Designer path (`timeline-ha10-conflicts.test.ts`) | No browser journey yet; `before-first` policies are mapped generically but no native fixture produced one. |
-| Shared spatial projection and outputs | Existing simulations and explicit genuine unavailable states | No real source-relative mapping or faithful JSON/JS/CSS playback export claim. |
+| HA11 spatial projection (bridge) | Genuine translate/rotate/scale/pivot keys, source capture and authored suffix, pivot base, compound single undo, unit refusal and group-source refusal (`timeline-ha11-spatial.test.ts`) | Designer fields/handles still refuse with the shared preview; no sourceTransform capture track or explicit conversion UI yet. |
+| Outputs | Existing simulations | No faithful JSON/JS/CSS playback export claim. |
 
 Native project-opening tests use the installed packages and public fault seams. The
 separate `project-rehydration` tests use a simulated host and prove only the reusable

@@ -1,8 +1,8 @@
 // integration/timeline-real.ts
 import { CommandRefusedError, createCommand, createEditor } from '@kazo-ca/timeline-editor';
 import type { EditorPlugin, EditorTransactionResult, IEditor, IEditorTransactionRequest, IHostRenderCandidate, ICommand, PropertyTimelineOperation } from '@kazo-ca/timeline-editor';
-import { composeHtmlDeclarations, createHtmlInspectionStage, createManualClock, createPropertyRegistry, prepareHtmlResolution, readHtmlPropertyBase } from '@kazo-ca/timeline-runtime';
-import type { HtmlPropertyBinding, IHtmlAnimationContext, IHtmlGradientDefinition, IHtmlResolvedBinding, IHtmlResolvedLayer, IHtmlResolvedProperty, IHtmlStage, ILayer, ITimelineDocument, LayerNode, PropertyRegistry, TimelinePropertyValue, TimelinePropertyValues } from '@kazo-ca/timeline-runtime';
+import { composeHtmlDeclarations, createHtmlInspectionStage, createManualClock, createPropertyRegistry, prepareHtmlResolution, readHtmlPropertyBase, resolveHtmlSpatialBindings } from '@kazo-ca/timeline-runtime';
+import type { HtmlPropertyBinding, IHtmlAnimationContext, IHtmlSpatialDefinition, IHtmlGradientDefinition, IHtmlResolvedBinding, IHtmlResolvedLayer, IHtmlResolvedProperty, IHtmlStage, ILayer, ITimelineDocument, LayerNode, PropertyRegistry, TimelinePropertyValue, TimelinePropertyValues } from '@kazo-ca/timeline-runtime';
 import { applyGradientEdits, cloneGradientDefinitions, readGradientComponent } from '@kazo-ca/css-properties';
 import type { GradientComponent, GradientDefinition, GradientEdit, GradientType, GradientValue } from '@kazo-ca/css-properties';
 import { gradientFixtureDefinition } from '../fixtures/gradient-scene.js';
@@ -14,6 +14,7 @@ import artifactManifest from '../vendor/timeline/manifest.json';
 import { propertyMapping } from './css-mappings.js';
 import type { PropertyMapping } from './css-mappings.js';
 import { createConflictCapability } from './conflict-bridge.js';
+import { captureSpatialDefinition, isSpatialComponent, parseSpatialWrite, spatialAlias, spatialBase } from './spatial-bridge.js';
 
 export interface ProjectRenderPolicy {
     readonly active: (() => void) | null;
@@ -163,9 +164,10 @@ function candidateProjection(candidate: IHostRenderCandidate, stage: IHtmlStage,
             if (previous && JSON.stringify(previous) !== JSON.stringify(gradient)) throw new Error('La composition résolue utilise des définitions de dégradé incompatibles.');
             gradients.set(gradient.id, gradient);
         };
+        const spatial = resolveHtmlSpatialBindings(context, properties);
         for (const [index, property] of properties.entries()) {
             const name = `renderChannel${index + 1}`;
-            bindings[name] = property.binding; values[name] = property.value;
+            bindings[name] = spatial.bindings[index] ?? property.binding; values[name] = property.value;
             const binding = property.binding.binding;
             if (binding.kind !== 'gradient') continue;
             const gradient = context.gradients?.[property.layerId]?.find(gradient => gradient.id === binding.gradientId);
@@ -178,7 +180,7 @@ function candidateProjection(candidate: IHostRenderCandidate, stage: IHtmlStage,
             bindings.structuralBase = { binding: { kind: 'gradient', gradientId: base.id, component: 'type' }, valueKind: 'text' };
             values.structuralBase = { kind: 'text', value: base.type };
         }
-        const result = composeHtmlDeclarations(element, values, bindings, [...gradients.values()]);
+        const result = composeHtmlDeclarations(element, values, bindings, [...gradients.values()], undefined, spatial.definitions);
         if (result.diagnostics.length) throw new Error(result.diagnostics.map(diagnostic => diagnostic.reason).join(' '));
         return { element, declarations: result.declarations };
     });
@@ -275,7 +277,10 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
             composed[property] = typed(base);
             represented.add(candidate.gradientId);
         }
-        const result = composeHtmlDeclarations(target, composed, resolved, context.gradients?.[id] ?? []);
+        const entries = Object.entries(resolved);
+        const spatial = resolveHtmlSpatialBindings(context, entries.map(([, binding]) => ({ layerId: id, binding })));
+        const remapped = Object.fromEntries(entries.map(([property, binding], index) => [property, spatial.bindings[index] ?? binding]));
+        const result = composeHtmlDeclarations(target, composed, remapped, context.gradients?.[id] ?? [], undefined, spatial.definitions);
         if (result.diagnostics.length) throw new Error(result.diagnostics.map(diagnostic => diagnostic.reason).join(' '));
         return result.declarations;
     };
@@ -458,14 +463,39 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         const taken = new Set([...nodeIds(editor.document.layers), ...Object.keys(current.bindings ?? {}), ...Object.keys(current.gradients ?? {})]);
         const created = new Map<string, string>();
         const bindings: Record<string, Record<string, HtmlPropertyBinding>> = {};
+        const spatial: Record<string, readonly IHtmlSpatialDefinition[]> = {};
         const written = new Set<string>();
-        const properties = writes.map((write): PropertyTimelineOperation => {
-            const mapping = propertyMapping(write.property);
-            if (!mapping) throw new Error(`La propriété « ${write.property} » n’a pas encore de correspondance Timeline explicite. Les ajustements spatiaux r3 restent indisponibles.`);
-            const target = resolveTarget(write, created, taken);
-            const key = JSON.stringify([target.id, mapping.property]);
+        const claim = (id: string, property: string): void => {
+            const key = JSON.stringify([id, property]);
             if (written.has(key)) throw new Error('Une même propriété reçoit plusieurs valeurs dans cette commande.');
             written.add(key);
+        };
+        /** HA11: one captured source projection per layer, explicit aliases, units owned by their tracks. */
+        const spatialOperation = (write: PropertyWrite, component: Parameters<typeof parseSpatialWrite>[0]): PropertyTimelineOperation => {
+            const target = resolveTarget(write, created, taken);
+            const prior = current.bindings?.[target.id]?.[spatialAlias(component)];
+            const parsed = parseSpatialWrite(component, write.value, prior?.kind === 'spatial' && 'unit' in prior ? prior.unit : undefined);
+            if (target.existing && lockedPath(editor.document.layers, target.id) !== false) throw new Error('Ce calque ou son dossier est verrouillé dans Timeline.');
+            claim(target.id, parsed.property);
+            const definitions = spatial[target.id] ?? current.spatial?.[target.id] ?? [];
+            if (definitions.length > 1) throw new Error('Plusieurs projections spatiales existent sur cet objet ; aucune n’est choisie implicitement.');
+            const definition = definitions[0] ?? captureSpatialDefinition(stage.resolveElements({ selector: write.selector }), read => owner.withSource(read));
+            spatial[target.id] = [definition];
+            const binding = { ...parsed.binding, projectionId: definition.id };
+            const bound = current.bindings?.[target.id]?.[parsed.property];
+            if (bound && JSON.stringify(bound) !== JSON.stringify(binding)) throw new Error(bound.kind === 'spatial' ? 'L’unité de cette piste spatiale est déjà fixée ; une conversion explicite est nécessaire et n’est jamais déduite.' : 'Cette propriété est déjà liée à une autre déclaration ; sa liaison n’est pas remplacée implicitement.');
+            const sibling = Object.entries(current.bindings?.[target.id] ?? {}).find(([name, candidate]) => name !== parsed.property && candidate.kind === 'spatial' && candidate.projectionId === binding.projectionId && candidate.component === binding.component);
+            if (sibling) throw new Error(`Ce composant spatial est déjà animé sur cet objet par « ${sibling[0]} » ; une seconde liaison n’est pas créée.`);
+            const initialValue = findLayer(target.id)?.propertyTimelines?.[parsed.property]?.initialValue ?? spatialBase(binding, definition);
+            bindings[target.id] = { ...current.bindings?.[target.id], ...bindings[target.id], [parsed.property]: binding };
+            return { kind: 'set', layerId: target.id, property: parsed.property, frame: write.frame, value: parsed.value, initialValue };
+        };
+        const properties = writes.map((write): PropertyTimelineOperation => {
+            if (isSpatialComponent(write.property)) return spatialOperation(write, write.property);
+            const mapping = propertyMapping(write.property);
+            if (!mapping) throw new Error(`La propriété « ${write.property} » n’a pas encore de correspondance Timeline explicite.`);
+            const target = resolveTarget(write, created, taken);
+            claim(target.id, mapping.property);
             const bound = current.bindings?.[target.id]?.[mapping.property];
             if (bound && JSON.stringify(bound) !== JSON.stringify(mapping.binding)) throw new Error('Cette propriété est déjà liée à une autre déclaration ; sa liaison n’est pas remplacée implicitement.');
             const sibling = Object.entries(current.bindings?.[target.id] ?? {}).find(([name, candidate]) => name !== mapping.property && candidate.kind === 'style' && candidate.cssName === mapping.binding.cssName);
@@ -475,7 +505,7 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
             bindings[target.id] = { ...current.bindings?.[target.id], ...bindings[target.id], [mapping.property]: mapping.binding };
             return { kind: 'set', layerId: target.id, property: mapping.property, frame: write.frame, value, initialValue };
         });
-        const context = { ...current, bindings: { ...current.bindings, ...bindings } };
+        const context = { ...current, bindings: { ...current.bindings, ...bindings }, ...(Object.keys(spatial).length ? { spatial: { ...current.spatial, ...spatial } } : {}) };
         const targets = [...created].map(([target, id]) => ({ id, selector: target }));
         return { ...(targets.length ? { commands: [targetCommand(targets)] } : {}), htmlContext: { stageId: stage.id, context }, properties };
     };
