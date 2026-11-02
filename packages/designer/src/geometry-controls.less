@@ -1,0 +1,38 @@
+// packages/designer/src/geometry-controls.less
+.HtmlDesigner .HtmlDesignerGeometry {
+  padding: 12px;
+  border-bottom: 1px solid var(--designer-border, #d6dbd8);
+  background: #f7f8f3;
+  h3 { margin: 0 0 8px; font-size: 13px; }
+  .geometry-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+  .geometry-tools button { margin: 0; padding: 6px 8px; font-size: 12px; }
+  .geometry-tools [aria-pressed=true] { background: #203632; border-color: #203632; color: #fff; }
+  .geometry-aids { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0; }
+  .geometry-aids label { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+  .geometry-aids input { width: auto; accent-color: #126a64; }
+  .geometry-pivots { display: grid; grid-template-columns: repeat(3, 32px); width: max-content; padding: 8px; gap: 4px; margin: 8px 0; }
+  .geometry-pivots legend { font-size: 11px; }
+  .geometry-pivots button { width: 32px; min-height: 28px; padding: 2px; margin: 0; }
+  .geometry-summary { display: block; overflow-wrap: anywhere; font: 11px/1.5 Consolas, monospace; }
+  .geometry-hint { margin: 7px 0; font-size: 11px; color: #536960; }
+  .geometry-status { display: block; font-size: 12px; color: #84501b; }
+  .geometry-confirmation { margin-top: 8px; padding: 10px; border: 1px solid #c99644; background: #fff5df; }
+  .geometry-confirmation p { margin: 0 0 6px; font-size: 12px; }
+  [hidden] { display: none; }
+}
+.HtmlDesignerGeometryOverlay {
+  position: fixed; pointer-events: none; z-index: 2147483002; box-sizing: border-box;
+  .geometry-handle { position: absolute; display: block; pointer-events: auto; touch-action: none; user-select: none; box-sizing: border-box; width: 28px; height: 28px; min-height: 28px; padding: 0; margin: 0; border: 2px solid #126a64; border-radius: 4px; background: #fff; color: #203632; font: 20px/24px 'Segoe UI', sans-serif; text-align: center; cursor: grab; box-shadow: 0 2px 5px #20363233; }
+  .geometry-handle:active { cursor: grabbing; }
+  .geometry-handle:focus-visible { outline: 3px solid #a46818; outline-offset: 3px; }
+  .geometry-move { left: calc(50% - 14px); top: -32px; }
+  .geometry-dimensions, .geometry-scale { transform: translate(-50%, -50%); cursor: nwse-resize; }
+  .geometry-rotate { right: -14px; top: -34px; cursor: crosshair; }
+  .geometry-pivot { transform: translate(-50%, -50%); border-radius: 50%; color: #84501b; cursor: crosshair; }
+  [hidden] { display: none; }
+}
+.HtmlDesignerGeometryOverlay[hidden], .HtmlDesignerGeometryGrid[hidden] { display: none; }
+.HtmlDesignerGeometryGrid { position: fixed; pointer-events: none; z-index: 2147482998; background-image: radial-gradient(#126a6473 1px, transparent 1px); }
+.HtmlDesignerGeometryGuide { position: fixed; pointer-events: none; z-index: 2147483001; background: #ad5b12; }
+.HtmlDesignerGeometryGuide.geometry-guide-x { width: 1px; }
+.HtmlDesignerGeometryGuide.geometry-guide-y { height: 1px; }

@@ -1,0 +1,20 @@
+{
+  "contract": "../../doc/implementation/css-property-editors.md — HA-CSS-EDIT-001/r1; whole-value CSS autocomplete and lazy structured drafts with one accepted property change.",
+  "targetViewports": ["320x960", "1440x960"],
+  "accessibility": { "status": "pass", "evidence": "Browser axe checks WCAG 2 A/AA and 2.1 AA on the open CSS workbench/dialog. Native labeled controls, combobox/listbox roles, keyboard filtering, arrow/Enter choice and Escape cancellation are exercised in Chromium, Firefox and WebKit." },
+  "responsive": { "status": "pass", "evidence": "New CSS journeys verify no horizontal overflow at 320 and 1440 pixels and render both the menu and editor. Parent inspected all four actual Chromium viewport captures; fixed popups follow visible anchors. Captures use the real viewport so full-page screenshot scrolling cannot dismiss the menu." },
+  "contentStates": {
+    "loading": { "status": "not-applicable", "reason": "Fixtures and the generated MDN catalogue are local and synchronous; no runtime catalogue request occurs." },
+    "empty": { "status": "pass", "evidence": "The CSS fixture starts with zero keys. Opening/filtering suggestions and opening a complex draft add no key or persistent document change. Empty selection retains the existing explanatory state." },
+    "error": { "status": "pass", "evidence": "Host refusal restores the accepted value and invalidates obsolete handlers. Unknown or ambiguous expressions use conservative structure/source fallback; regression tests preserve variables, named background colors, oblique angles and gradient interpolation syntax." },
+    "partial": { "status": "pass", "evidence": "Disabled group properties expose diagnostics and cannot open active editors. Shorthand compatibility compares original longhands; a differing border side refuses the group edit without creating data." },
+    "success": { "status": "pass", "evidence": "Real field interactions edit border width/style/color, alpha, gradient geometry/stops and transform functions. Apply creates one reversible property command; undo restores the target and keys while its peer remains intact. Cancel, Escape and selection/frame changes discard drafts." },
+    "permission": { "status": "not-applicable", "reason": "This local editing demo contains no account or production permission operation. Explicit template replacement is an editing choice, not a permission grant." }
+  },
+  "renderedEvidence": [
+    { "viewport": "320x960", "artifact": "css-suggestions-320.png", "observation": "Logical border style field has its own scrollable dropdown showing dashed/dotted/solid and other values. The menu opens upwards within the viewport and preserves the property input." },
+    { "viewport": "1440x960", "artifact": "css-suggestions-1440.png", "observation": "The CSS fixture and sibling remain visible beside the inspector. A distinct dropdown offers logical border style values without writing a key." },
+    { "viewport": "320x960", "artifact": "css-editor-320.png", "observation": "Border editor fits the narrow viewport with labeled width/style/color fields, exact CSS source, explicit template replacement, Apply and Cancel visible." },
+    { "viewport": "1440x960", "artifact": "css-editor-1440.png", "observation": "Modeless border draft stays within the viewport above the inspector, while the source scene remains visible. Host navigation is available and no temporal behavior is implied." }
+  ]
+}

@@ -1,0 +1,70 @@
+// packages/dom-tree/src/styles.less
+.HierarchicalDomTree {
+  --tree-accent: #176b6a;
+  --tree-selected: #dceeed;
+  color: #293b46;
+  font: 12px/1.4 Consolas, monospace;
+  min-width: 0;
+
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  ul { padding: 0; margin: 0; list-style: none; }
+  ul[role="group"] { margin-left: 14px; border-left: 1px solid #d9e2e2; padding-left: 5px; }
+
+  .tree-row {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    min-height: 36px;
+    padding: 3px 6px 3px 2px;
+    border-radius: 3px;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+    outline-offset: -2px;
+  }
+
+  .tree-row:hover { background: #edf2f2; }
+  [role="treeitem"][aria-selected="true"] > .tree-row { background: var(--tree-selected); color: #0f5253; }
+  [role="treeitem"] { outline: none; }
+  [role="treeitem"]:focus-visible > .tree-row { outline: 2px solid var(--tree-accent); }
+
+  .tree-disclosure, .tree-spacer {
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+  }
+
+  .tree-disclosure {
+    display: inline-grid;
+    place-items: center;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: #526b78;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .tree-disclosure:hover { background: #cbdedd; }
+  .tree-disclosure:focus-visible { outline: 2px solid var(--tree-accent); }
+  .tree-node { display: block; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .tree-label { min-width: 0; overflow-wrap: anywhere; }
+  .tree-class {
+    max-width: 100%;
+    min-height: 28px;
+    padding: 0 3px;
+    border: 1px solid transparent;
+    border-bottom-color: #9fbebc;
+    border-radius: 2px;
+    background: transparent;
+    color: var(--tree-accent);
+    font: inherit;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    vertical-align: middle;
+    cursor: pointer;
+  }
+  .tree-class:hover { background: #cbdedd; border-color: #9fbebc; }
+  .tree-class:focus-visible { outline: 2px solid var(--tree-accent); outline-offset: 1px; }
+}

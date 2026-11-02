@@ -1,0 +1,40 @@
+# .github/workflows/ci.yml
+name: Validate packages and demo
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run check:timeline-artifacts
+      - run: npm run test:coverage
+      - run: npm run build
+      - run: npm run build:demo
+      - run: npm run check:packages
+      - run: npm exec -- playwright install --with-deps chromium firefox webkit
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: browser-and-coverage-evidence
+          path: |
+            playwright-report/
+            test-results/
+            coverage/
+          retention-days: 14

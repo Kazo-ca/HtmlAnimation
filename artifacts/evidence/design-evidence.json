@@ -1,0 +1,65 @@
+{
+  "contract": "../../doc/implementation/plan.md — batch 1 UI contract; French workbench for selecting existing HTML, explicit property targeting, reversible edits and persistent Full XPath journal.",
+  "targetViewports": [
+    "320x960",
+    "768x960",
+    "1024x960",
+    "1440x960"
+  ],
+  "accessibility": {
+    "status": "pass",
+    "evidence": "Playwright WCAG2A/AA+2.1AA axe: no violations in Chromium, Firefox, WebKit. Keyboard tree navigation, disclosure restoration, selection/test mode, semantic labels and visible focus styles exercised; reduced-motion used for captures."
+  },
+  "responsive": {
+    "status": "pass",
+    "evidence": "33 browser checks passed, including no horizontal overflow at 320/768/1024/1440; narrow inspector bounded at720px and scrollable. Desktop and320 captures visually inspected by parent."
+  },
+  "contentStates": {
+    "loading": {
+      "status": "not-applicable",
+      "reason": "The demo mounts local synchronous fixtures, no remote loading operation."
+    },
+    "empty": {
+      "status": "pass",
+      "evidence": "Fresh scene has0 keys; panel with no selection asks user to select; first edit requires target. Unit tests+browser flow cover it."
+    },
+    "error": {
+      "status": "pass",
+      "evidence": "Invalid CSS, rejected adapter mutation and invalid targets show diagnostic; accepted values/keys restored. Unit integration regression tests cover these branches."
+    },
+    "partial": {
+      "status": "pass",
+      "evidence": "Group margin with divergent original values disabled and explained; opacity remains editable. Tested in all3 browsers and rendered screenshots."
+    },
+    "success": {
+      "status": "pass",
+      "evidence": "Accepted CSS and ID changes, FullXPath journal, undo/redo verified through UI in all3browsers."
+    },
+    "permission": {
+      "status": "not-applicable",
+      "reason": "No production permission or account operation is exposed by the local authoring demo."
+    }
+  },
+  "renderedEvidence": [
+    {
+      "viewport": "320x960",
+      "artifact": "designer-320.png",
+      "observation": "Stacked workbench; source tree and inspector scroll within bounded areas; no horizontal overflow; visible mixed-origin diagnostic."
+    },
+    {
+      "viewport": "768x960",
+      "artifact": "designer-768.png",
+      "observation": "Three regions or responsive workbench visible, group four-element outlines, distinct specific-button opacity, labeled properties and recorded-frame controls."
+    },
+    {
+      "viewport": "1024x960",
+      "artifact": "designer-1024.png",
+      "observation": "Three regions or responsive workbench visible, group four-element outlines, distinct specific-button opacity, labeled properties and recorded-frame controls."
+    },
+    {
+      "viewport": "1440x960",
+      "artifact": "designer-1440.png",
+      "observation": "Three regions or responsive workbench visible, group four-element outlines, distinct specific-button opacity, labeled properties and recorded-frame controls."
+    }
+  ]
+}
