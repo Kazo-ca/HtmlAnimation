@@ -1,0 +1,43 @@
+// packages/designer/src/gradient-controls.less
+.HtmlDesignerGradientOverlay {
+  --gradient-handle-ink: #126a64;
+  position: fixed;
+  z-index: 2147483002;
+  pointer-events: none;
+  box-sizing: border-box;
+  font: 14px/1.2 'Segoe UI', sans-serif;
+
+  &[hidden] { display: none; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+  line { stroke: white; stroke-width: 2; stroke-dasharray: 4 3; filter: drop-shadow(0 0 1px #203632); }
+  .gradient-handle-connector { stroke: var(--gradient-handle-ink); stroke-width: 1.5; stroke-dasharray: none; }
+  .gradient-handle-pin { fill: white; stroke: var(--gradient-handle-ink); stroke-width: 1.5; }
+  .gradient-handle {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    box-sizing: border-box;
+    width: 28px;
+    height: 28px;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 2px solid var(--gradient-handle-ink);
+    border-radius: 50%;
+    color: var(--gradient-handle-ink);
+    background: #fff;
+    box-shadow: 0 1px 4px #20363240;
+    font: inherit;
+    cursor: grab;
+    pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+    &:hover { background: #e5efeb; }
+    &:active { cursor: grabbing; }
+    &:focus-visible { outline: 3px solid #c48b31; outline-offset: 3px; }
+    &:disabled { opacity: .55; cursor: default; }
+    &[hidden] { display: none; }
+  }
+  .gradient-handle-stop { border-radius: 4px; }
+  .gradient-handle-center { width: 24px; height: 24px; }
+}

@@ -5,6 +5,11 @@ export interface HierarchicalDomTreeOptions {
   readonly root: HTMLElement;
 }
 
+export interface TreeSelectionContext {
+  readonly kind: 'class';
+  readonly className: string;
+}
+
 interface TreeEntry {
   readonly element: HTMLElement;
   readonly row: HTMLLIElement;
@@ -17,7 +22,7 @@ interface TreeEntry {
 export class HierarchicalDomTree {
   private readonly tree: HTMLUListElement;
   private readonly wrapper: HTMLDivElement;
-  private readonly listeners = new Set<(elements: readonly HTMLElement[]) => void>();
+  private readonly listeners = new Set<(elements: readonly HTMLElement[], context?: TreeSelectionContext) => void>();
   private readonly manualExpanded = new WeakMap<HTMLElement, boolean>();
   private entries = new Map<HTMLElement, TreeEntry>();
   private selection: readonly HTMLElement[] = [];
@@ -59,7 +64,7 @@ export class HierarchicalDomTree {
     this.updateRows();
   }
 
-  public onSelectionChange(listener: (elements: readonly HTMLElement[]) => void): () => void {
+  public onSelectionChange(listener: (elements: readonly HTMLElement[], context?: TreeSelectionContext) => void): () => void {
     if (this.destroyed) return () => undefined;
     this.listeners.add(listener);
     return () => { this.listeners.delete(listener); };
@@ -99,10 +104,7 @@ export class HierarchicalDomTree {
     group.setAttribute('role', 'group');
     const disclosure = children.length > 0 ? document.createElement('button') : null;
     this.addDisclosure(row, element, disclosure, name);
-    const text = document.createElement('span');
-    text.className = 'tree-label';
-    text.textContent = name;
-    row.append(text);
+    this.addLabel(row, element);
     branch.addEventListener('click', (event) => {
       event.stopPropagation();
       this.selectFromUser(element);
@@ -113,6 +115,23 @@ export class HierarchicalDomTree {
     children.forEach((child) => group.append(this.createBranch(child, element)));
     branch.append(row, group);
     return branch;
+  }
+
+  private addLabel(row: HTMLElement, element: HTMLElement): void {
+    const document = this.tree.ownerDocument;
+    const content = document.createElement('span'); content.className = 'tree-node';
+    const text = document.createElement('span'); text.className = 'tree-label';
+    text.textContent = `${element.localName}${element.id ? `#${element.id}` : ''}`;
+    const classes = document.createElement('span'); classes.className = 'tree-classes';
+    for (const className of element.classList) {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'tree-class';
+      button.textContent = `.${className}`;
+      button.setAttribute('aria-label', `Sélectionner tous les éléments de la classe .${className}`);
+      button.addEventListener('focus', () => { if (!this.destroyed) { this.focused = element; this.updateTabStops(); } });
+      button.addEventListener('click', event => { event.stopPropagation(); this.selectClassFromUser(element, className); });
+      classes.append(document.createTextNode(' '), button);
+    }
+    content.append(text, classes); row.append(content);
   }
 
   private addDisclosure(row: HTMLElement, element: HTMLElement, disclosure: HTMLButtonElement | null, label: string): void {
@@ -174,6 +193,15 @@ export class HierarchicalDomTree {
     this.focusEntry(element);
     this.setSelection([element]);
     this.listeners.forEach((listener) => listener([element]));
+  }
+
+  private selectClassFromUser(element: HTMLElement, className: string): void {
+    if (this.destroyed) return;
+    const root = this.options.root;
+    const elements = [root, ...root.querySelectorAll('*')].filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement && candidate.classList.contains(className));
+    this.focused = element;
+    this.setSelection(elements);
+    this.listeners.forEach(listener => listener(elements, { kind: 'class', className }));
   }
 
   private focusEntry(element: HTMLElement): void {

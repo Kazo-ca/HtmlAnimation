@@ -1,5 +1,14 @@
 // packages/css-properties/src/index.ts
 import './styles.less';
+import { getCssPropertyMetadata } from './catalog.js';
+import type { CssEditorKind } from './catalog.js';
+import { ValueCombobox } from './value-combobox.js';
+import { createComplexEditor } from './complex-editors.js';
+export { CSS_CATALOG_REVISION, getCssPropertyMetadata, getCssPropertyNames } from './catalog.js';
+export type { CssPropertyMetadata, CssEditorKind } from './catalog.js';
+export * from './gradient-types.js';
+export { cloneGradientDefinitions, validateGradientDefinitions, applyGradientEdits, gradientCss, readGradientComponent } from './gradient-model.js';
+export { GradientEditor } from './gradient-editor.js';
 
 export interface CssProperty {
   readonly name: string;
@@ -8,6 +17,8 @@ export interface CssProperty {
   readonly disabled?: boolean;
   readonly diagnostic?: string;
   readonly capability?: 'instant' | 'interpolable';
+  readonly suggestions?: readonly string[];
+  readonly editor?: CssEditorKind;
 }
 
 export interface PropertyChange {
@@ -40,6 +51,11 @@ export class CssPropertiesPanel {
   private readonly prefix = `css-properties-${++panelCount}`;
   private properties: readonly CssProperty[] = [];
   private destroyed = false;
+  private rowAbort = new AbortController();
+  private readonly comboboxes: ValueCombobox[] = [];
+  private activeCombobox: ValueCombobox | null = null;
+  private activeEditor: { readonly control: ReturnType<typeof createComplexEditor>; readonly launcher: HTMLButtonElement; readonly abort: AbortController } | null = null;
+  private readonly requested = new WeakMap<HTMLInputElement, string>();
 
   public constructor(container: HTMLElement, private readonly options: CssPropertiesOptions = {}) {
     const document = container.ownerDocument;
@@ -59,6 +75,10 @@ export class CssPropertiesPanel {
 
   public setProperties(properties: readonly CssProperty[]): void {
     if (this.destroyed) return;
+    const focus = this.root.ownerDocument.activeElement;
+    const focusedProperty = focus instanceof HTMLInputElement && this.rows.contains(focus) ? focus.dataset.property : undefined;
+    this.closeEditor(false); this.rowAbort.abort(); this.rowAbort = new AbortController();
+    for (const combobox of this.comboboxes.splice(0)) combobox.destroy(); this.activeCombobox = null;
     this.properties = properties.map((property) => ({ ...property }));
     this.rows.replaceChildren();
     if (properties.length === 0) {
@@ -77,6 +97,7 @@ export class CssPropertiesPanel {
       this.properties.forEach((property, index) => this.rows.append(this.createRow(property, index)));
     }
     this.filterRows();
+    if (focusedProperty) [...this.rows.querySelectorAll<HTMLInputElement>('input[data-property]')].find(input => input.dataset.property === focusedProperty)?.focus({ preventScroll: true });
   }
 
   public onChange(listener: (change: PropertyChange) => void): () => void {
@@ -87,6 +108,8 @@ export class CssPropertiesPanel {
 
   public destroy(): void {
     this.destroyed = true;
+    this.closeEditor(false); this.rowAbort.abort();
+    for (const combobox of this.comboboxes.splice(0)) combobox.destroy(); this.activeCombobox = null;
     this.listeners.clear();
     this.properties = [];
     this.root.remove();
@@ -118,13 +141,26 @@ export class CssPropertiesPanel {
     input.disabled = property.disabled ?? false;
     input.title = property.name;
     label.htmlFor = input.id;
-    input.addEventListener('change', () => this.requestChange(property, input));
+    input.addEventListener('change', () => this.requestChange(property, input), { signal: this.rowAbort.signal });
+    input.addEventListener('input', () => { if (this.requested.get(input) !== input.value) this.requested.delete(input); }, { signal: this.rowAbort.signal });
     input.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
       input.value = property.value;
-    });
-    row.append(label, input);
+      this.requested.delete(input);
+    }, { signal: this.rowAbort.signal });
+    const name = document.createElement('div'); name.className = 'property-name'; name.append(label);
+    const metadata = getCssPropertyMetadata(property.name); const kind = property.editor ?? metadata.editor;
+    if (kind !== 'keyword' && kind !== 'text') {
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'property-editor-toggle'; edit.textContent = '⋯'; edit.disabled = property.disabled ?? false;
+      edit.setAttribute('aria-label', `Modifier ${property.name} avec un éditeur`); edit.title = `Modifier ${property.name} avec un éditeur`;
+      edit.addEventListener('click', () => this.openEditor(property, input, edit, kind), { signal: this.rowAbort.signal }); name.append(edit);
+    }
+    const value = document.createElement('div'); value.className = 'property-value';
+    const css = document.defaultView?.CSS;
+    const suggestions = [...new Set(property.suggestions ?? metadata.keywords)];
+    const combobox = new ValueCombobox(input, this.root, { property: property.name, suggestions, supports: candidate => !css?.supports || css.supports(property.name, candidate), onChoose: () => this.requestChange(property, input), onOpen: active => { if (this.activeCombobox !== active) this.activeCombobox?.close(); this.closeEditor(false); this.activeCombobox = active; } });
+    this.comboboxes.push(combobox); value.append(input, combobox.button); row.append(name, value);
     this.addInfo(row, input, property);
     return row;
   }
@@ -148,17 +184,42 @@ export class CssPropertiesPanel {
   }
 
   private requestChange(property: CssProperty, input: HTMLInputElement): void {
-    if (this.destroyed || property.disabled || input.value === property.value) return;
+    if (this.destroyed || property.disabled || input.value === property.value || this.requested.get(input) === input.value) return;
+    this.requested.set(input, input.value);
     const change: PropertyChange = { property: property.name, oldValue: property.value, newValue: input.value };
     this.listeners.forEach((listener) => listener(change));
   }
 
   private filterRows(): void {
     if (this.destroyed) return;
+    this.activeCombobox?.close();
     const query = this.search.value.trim().toLocaleLowerCase('fr');
     this.rows.querySelectorAll<HTMLElement>('[data-property-row]').forEach((row) => {
       const searchable = `${row.dataset.propertyRow ?? ''} ${row.querySelector('label')?.textContent ?? ''}`;
       row.hidden = !searchable.toLocaleLowerCase('fr').includes(query);
     });
+  }
+
+  private openEditor(property: CssProperty, input: HTMLInputElement, launcher: HTMLButtonElement, kind: CssEditorKind): void {
+    if (this.destroyed || property.disabled) return;
+    this.closeEditor(false); this.activeCombobox?.close();
+    const control = createComplexEditor(this.root.ownerDocument, { property: property.name, value: property.value, kind,
+      onApply: value => { this.closeEditor(false); if (this.destroyed || !input.isConnected) return; input.value = value; input.focus({ preventScroll: true }); this.requestChange(property, input); },
+      onClose: () => this.closeEditor(true),
+    });
+    control.element.classList.add('property-complex-editor'); control.element.setAttribute('aria-modal', 'false');
+    const abort = new AbortController(); this.activeEditor = { control, launcher, abort }; this.root.append(control.element);
+    this.root.ownerDocument.addEventListener('pointerdown', event => {
+      const NodeClass = this.root.ownerDocument.defaultView?.Node;
+      if (NodeClass && event.target instanceof NodeClass && !control.element.contains(event.target) && !launcher.contains(event.target)) this.closeEditor(false);
+    }, { signal: abort.signal });
+    control.focus();
+  }
+
+  private closeEditor(restoreFocus: boolean): void {
+    const active = this.activeEditor; this.activeEditor = null;
+    if (!active) return;
+    active.abort.abort(); active.control.destroy(); active.control.element.remove();
+    if (restoreFocus && active.launcher.isConnected) active.launcher.focus({ preventScroll: true });
   }
 }

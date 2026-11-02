@@ -1,0 +1,20 @@
+{
+  "contract": "../../doc/implementation/conflict-resolution.md — HA-DESIGN-CONFLICT-001/r1; explicit adapter-owned conflict diagnostics, consequences and shared undo.",
+  "targetViewports": ["320x960", "768x960", "1024x960", "1440x960"],
+  "accessibility": { "status": "pass", "evidence": "Chromium/Firefox/WebKit journeys exercise native modal labels, keyboard choice/confirmation, Escape, focus return and reduced motion. Axe WCAG 2 A/AA and 2.1 AA found no violation on the open desktop confirmation." },
+  "responsive": { "status": "pass", "evidence": "The authoring dialog fits all four tested viewports without horizontal overflow. The parent inspected actual Chromium captures at 320, 768, 1024 and 1440 pixels; text wraps, consequences remain readable, and Apply/Cancel remain visible." },
+  "contentStates": {
+    "loading": { "status": "not-applicable", "reason": "The local simulation and conflict capability are synchronous; no network request or loading state is introduced." },
+    "empty": { "status": "pass", "evidence": "The unchanged group/ID reference has no conflict capability/dialog or extra key, including direct navigation through its six recorded frames." },
+    "error": { "status": "pass", "evidence": "A scripted contribution change marks its saved decision stale and suspends the ambiguous preview. Fresh explicit confirmation and shared undo recover it. Unit tests refuse stale tickets, reentrant context changes and unavailable choices without partial writes." },
+    "partial": { "status": "pass", "evidence": "Only button1 opacity is suspended for the unresolved class overlap. The more specific button2, non-overlapping members and other properties keep their contributions." },
+    "success": { "status": "pass", "evidence": "An explicit choice changes preview without source-document events, survives selection/seeking and has one shared undo/redo. The A scenario announces its starting key before confirmation and restores both key and decision together." },
+    "permission": { "status": "not-applicable", "reason": "This local authoring workflow uses host-owned trusted HTML and introduces no account, deployment or permission grant." }
+  },
+  "renderedEvidence": [
+    { "viewport": "320x960", "artifact": "conflict-confirmation-320.png", "observation": "The narrow modal stacks actions, wraps selectors and consequences, and keeps the labeled native choice and both actions within the viewport." },
+    { "viewport": "768x960", "artifact": "conflict-confirmation-768.png", "observation": "The dialog fits the tablet workbench above the visible scene and inspector; the consequence is distinct from the saved-project note." },
+    { "viewport": "1024x960", "artifact": "conflict-confirmation-1024.png", "observation": "The modal preserves the property/objects/affected-element/period hierarchy with a visible keyboard focus ring and no clipping." },
+    { "viewport": "1440x960", "artifact": "conflict-confirmation-1440.png", "observation": "Desktop scene and diagnostics remain visible behind the native modal. The explicit priority choice states that it adds no key; Apply and Cancel are distinct." }
+  ]
+}

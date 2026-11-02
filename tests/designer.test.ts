@@ -422,7 +422,7 @@ describe('HtmlDesigner integration with a scripted simulation, not a real Timeli
     expect(buttons[0].style.color).toBe('red');
     expect(buttons[1].style.opacity).toBe('0.5');
     designer.selectElements([buttons[1]]);
-    expect(timeline.getState().selectedObjectId).toBe('group');
+    expect(timeline.getState().selectedObjectId).toBeNull();
   });
 
   it('lets Test mode deliver normal content clicks and restores selection interception afterward', () => {
@@ -450,7 +450,7 @@ describe('HtmlDesigner integration with a scripted simulation, not a real Timeli
   it('rejects incompatible adapter revisions before taking ownership of the scene', () => {
     const fixture = createSceneFixture();
     const timeline = createRecordedTimeline();
-    const incompatible: unknown = { ...timeline, contractRevision: 'HA-TL-001/r2' };
+    const incompatible: unknown = { ...timeline, contractRevision: 'HA-TL-001/unknown' };
     expect(() => new HtmlDesigner({ ...fixture, timeline, adapter: () => incompatible as RecordedTimeline })).toThrow('Révision de contrat Timeline incompatible.');
     expect(fixture.propertiesContainer.children).toHaveLength(0);
     expect(fixture.treeContainer.children).toHaveLength(0);

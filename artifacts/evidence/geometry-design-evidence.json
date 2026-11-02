@@ -1,0 +1,25 @@
+{
+  "contract": "../../doc/implementation/geometry-batch.md — batch 2 spatial tools; French workbench with preview-only gestures, explicit source conversion and one reversible compound command.",
+  "targetViewports": ["320x960", "1440x960"],
+  "accessibility": {
+    "status": "pass",
+    "evidence": "Playwright axe checks WCAG 2 A/AA and 2.1 AA in the simulated geometry workbench in Chromium, Firefox and WebKit. Keyboard movement, input isolation, Escape cancellation, semantic tool labels and visible handles are exercised."
+  },
+  "responsive": {
+    "status": "pass",
+    "evidence": "Geometry overflow and tool visibility checks at 320 and 1440 pixels in all three browsers. Parent visually inspected the actual Chromium captures at both widths and the rotated Dimensions handle. Narrow layout stacks regions and wraps controls; full-page image includes the bounded inspector and footer."
+  },
+  "contentStates": {
+    "loading": { "status": "not-applicable", "reason": "Fixtures mount synchronously from local files; this demo does not load a remote project." },
+    "empty": { "status": "pass", "evidence": "Geometry fixture starts with zero keys and disabled undo/redo. Selection changes cancel pending gestures without creating keys; unavailable selection hides the active geometry frame." },
+    "error": { "status": "pass", "evidence": "Singular Dimensions mappings show a diagnostic and add no keys. Unit tests also cover unsupported transforms and detached or renamed targets." },
+    "partial": { "status": "pass", "evidence": "Geometry handles require one measurable target; grouped property editing remains separate. Relative or unknown source expressions require an explicit announced conversion and support cancellation." },
+    "success": { "status": "pass", "evidence": "Real pointer and keyboard browser paths exercise move, dimensions, rotation, scale and pivot with simulated adapter writes, undo/redo, source retention and conversion consent. Scrollable host-container regressions with auto and smooth CSS scrolling preserve scroll position in the same pointer event and through commit and undo. Temporary previews do not emit persistent source-document events." },
+    "permission": { "status": "not-applicable", "reason": "The local demo exposes no account or production permission operation. CSS conversion consent is an editing choice covered by success and partial states." }
+  },
+  "renderedEvidence": [
+    { "viewport": "320x960", "artifact": "geometry-320.png", "observation": "Stacked structure, scene and inspector; French tool buttons and source attributes wrap within the viewport, move handle remains visible, simulation and zero-key state are explicit." },
+    { "viewport": "1440x960", "artifact": "geometry-1440.png", "observation": "Three regions show selected source node, central geometry fixture with move handle and right-hand tool controls; independent dimensions and scales are legible, footer exposes reusable scenarios." },
+    { "viewport": "1280x720", "artifact": "geometry-dimensions-rotated.png", "observation": "After a rotated Dimensions gesture the handle sits on the actual transformed corner and the inspector shows width/height changes while rotation remains 90 degrees. The automated test verifies pointer alignment and undo." }
+  ]
+}

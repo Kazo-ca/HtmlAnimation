@@ -55,6 +55,12 @@ export class InspectorUi {
     for (const input of this.attributes.querySelectorAll<HTMLInputElement>('input')) input.value = element?.getAttribute(input.dataset.attribute ?? '') ?? '';
   }
   public setStatus(message: string): void { this.status.textContent = message; }
+  public setFault(message: string): void {
+    this.setStatus(message); this.target.disabled = true; this.attributes.disabled = true;
+    const title = this.journal.querySelector('strong'); if (title) title.textContent = 'État du document original à vérifier après la faute';
+    // Also expose disabled on the fields themselves for consumers inspecting them.
+    for (const field of this.root.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>('input, select, button')) field.disabled = true;
+  }
   public showTargets(choices: readonly string[], count: (selector: string) => number): void {
     const doc = this.root.ownerDocument;
     this.targetSelect.replaceChildren();
@@ -69,9 +75,9 @@ export class InspectorUi {
     this.target.hidden = false; this.targetSelect.focus();
   }
   public hideTargets(): void { this.target.hidden = true; }
-  public setChanges(changes: readonly DocumentChange[]): void {
+  public setChanges(changes: readonly DocumentChange[], provisional = false): void {
     const doc = this.root.ownerDocument; const title = doc.createElement('strong');
-    title.textContent = changes.length ? `Document original modifié · ${changes.length}` : 'Document original inchangé';
+    title.textContent = changes.length ? `${provisional ? 'Modifications provisoires du document' : 'Document original modifié'} · ${changes.length}` : 'Document original inchangé';
     const list = doc.createElement('ol');
     for (const change of changes) {
       const item = doc.createElement('li'); item.textContent = `${change.fullXPath} · ${change.attribute} : ${change.oldValue ?? '(absent)'} → ${change.newValue ?? '(absent)'}`; list.append(item);
