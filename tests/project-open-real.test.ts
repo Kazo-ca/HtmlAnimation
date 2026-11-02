@@ -221,12 +221,34 @@ describe('undoable native project opening', () => {
     expect(scene.querySelector<HTMLElement>('#gradient-box')?.style.backgroundImage).toContain('55deg');
   });
 
-  for (const unsupported of ['folder', 'gradient-selector', 'gradient-owner'] as const) it(`refuses an unmapped ${unsupported} before a transaction while preserving its source and redo`, () => {
+  for (const supported of ['folder', 'gradient-owner'] as const) it(`opens a general ${supported} mapping in the one history`, () => {
+    const { host, designer, project, source, scene, initialProfile } = setup();
+    const data = project.timeline as unknown as ITimelineDocument; const context = host.stage.animationContext;
+    const timeline = supported === 'folder' ? { ...data, layers: [{ id: 'folder', type: 'folder', name: 'Folder', children: data.layers }] } : { ...data, layers: data.layers.map(layer => layer.type !== 'layer' ? layer : { ...layer, id: 'otherGradientObject' }) };
+    const htmlContext = supported === 'gradient-owner' ? { ...context, gradients: { otherGradientObject: context.gradients?.gradientObject ?? [] }, bindings: { otherGradientObject: context.bindings?.gradientObject ?? {} } } : context;
+    const input = decodeEditableProject(encodeEditableProject({ ...project, timeline, htmlContext }, createTimelineProjectValidationPorts()), createTimelineProjectValidationPorts());
+    const before = host.editor.document;
+    expect(openRealProject({ host, designer, scene, project: input, source, initialProfile })).toEqual({ status: 'changed' });
+    const owner = supported === 'gradient-owner' ? 'otherGradientObject' : 'gradientObject';
+    expect(host.adapter.gradients?.read(owner)?.selector).toBe('#gradient-box');
+    expect(designer.undo().status).toBe('changed'); expect(host.editor.document).toEqual(before);
+  });
+
+  it('keeps Timeline’s own refusal of a gradient target absent from the opened source', () => {
+    const { host, designer, project, source, scene, root, initialProfile } = setup();
+    const data = project.timeline as unknown as ITimelineDocument;
+    const timeline = { ...data, layers: data.layers.map(layer => layer.type !== 'layer' ? layer : { ...layer, target: { selector: '#another-gradient' } }) };
+    const input = decodeEditableProject(encodeEditableProject({ ...project, timeline }, createTimelineProjectValidationPorts()), createTimelineProjectValidationPorts());
+    const before = { document: host.editor.document, source: root.innerHTML, scene: scene.innerHTML };
+    expect(openRealProject({ host, designer, scene, project: input, source, initialProfile })).toEqual({ status: 'rejected', message: 'La cible ne correspond à aucun élément.' });
+    expect(host.editor.document).toBe(before.document); expect(root.innerHTML).toBe(before.source); expect(scene.innerHTML).toBe(before.scene); expect(designer.getFault()).toBeNull();
+  });
+
+  it('refuses a gradient owner without a selector layer before a transaction while preserving its source and redo', () => {
     const { scene, host, designer, project, source, root, initialProfile } = setup();
     expect(designer.editGradient([{ gradientId: 'main', component: 'angle', value: 35 }]).status).toBe('changed'); expect(designer.undo().status).toBe('changed');
-    const data = project.timeline as unknown as ITimelineDocument; const context = host.stage.animationContext;
-    const timeline = unsupported === 'folder' ? { ...data, layers: [{ id: 'folder', type: 'folder', name: 'Folder', children: data.layers }] } : { ...data, layers: data.layers.map(layer => layer.type !== 'layer' ? layer : { ...layer, ...(unsupported === 'gradient-selector' ? { target: { selector: '#another-gradient' } } : { id: 'otherGradientObject' }) }) };
-    const htmlContext = unsupported === 'gradient-owner' ? { ...context, gradients: { otherGradientObject: context.gradients?.gradientObject ?? [] }, bindings: { otherGradientObject: context.bindings?.gradientObject ?? {} } } : context;
+    const timeline = project.timeline; const context = host.stage.animationContext;
+    const htmlContext = { ...context, gradients: { ...context.gradients, orphanObject: context.gradients?.gradientObject ?? [] } };
     const input = decodeEditableProject(encodeEditableProject({ ...project, timeline, htmlContext }, createTimelineProjectValidationPorts()), createTimelineProjectValidationPorts());
     const before = { document: host.editor.document, nodes: [...root.childNodes], source: root.innerHTML, scene: scene.innerHTML }; const transaction = vi.spyOn(host, 'executeTransaction');
     expect(openRealProject({ host, designer, scene, project: input, source, initialProfile })).toEqual({ status: 'rejected', message: expect.stringContaining('atelier') });

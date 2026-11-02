@@ -129,7 +129,7 @@ describe('genuine HA8 atomic Designer bridge', () => {
         expect(subject.getAttribute('style')).toBe(preview);
         designer.selectTarget('#gradient-peer'); expect(designer.editProperty('opacity', '0.4').status).toBe('changed');
         const peerPreview = peer.getAttribute('style');
-        expect(host.stage.inspectProperty({ selector: '#gradient-peer' }, 'opacity', { layerId: 'peerObject', valueKind: 'number' }).initialValue).toEqual({ kind: 'number', value: 1 });
+        expect(host.stage.inspectProperty({ selector: '#gradient-peer' }, 'opacity', { layerId: 'object1', valueKind: 'number' }).initialValue).toEqual({ kind: 'number', value: 1 });
         expect(peer.getAttribute('style')).toBe(peerPreview);
         if (first === 'designer') { designer.dispose(); host.dispose(); } else { host.dispose(); designer.dispose(); }
         expect(subject.hasAttribute('style')).toBe(false); expect(peer.hasAttribute('style')).toBe(false);

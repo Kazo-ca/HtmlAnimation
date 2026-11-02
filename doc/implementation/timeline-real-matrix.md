@@ -26,7 +26,16 @@ A/B/open/edit/undo/redo chain with source journal and metadata. All 693 unit/int
 tests pass, including the 26 native opening cases. See `editable-project.md` for the
 initial browser failures, their fixes and the exact PR record of final full validation.
 
-The broader final-candidate conflict API is installed but the general bridge mapping is
+General adapter lot (2026-11-02, branch `codex/general-adapter`): the bridge now reads
+the recursive layer tree, so folders and class-group selector layers are listed and
+selectable. Gradient identities are read, composed and edited on any selector layer.
+Explicit first-edit targets, including class groups, become root layers with
+collision-free `objectN` identities. Several targets created in one command share one
+undo. Writes still use an explicit property mapping table and remain opacity-only until
+the atomic CSS lot. Opening refuses only a gradient whose owner is not a selector layer.
+Timeline's own refusal of an absent target is kept unchanged.
+
+The broader final-candidate conflict API is installed but its bridge mapping (HA10) is
 still separate work. Shared source-relative spatial mapping remains unavailable. These
 packages are local unpublished archives, not an assumption about a registry release.
 
@@ -36,11 +45,12 @@ The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
 | --- | --- | --- |
 | Authoring capture | Native keys, retained curve sources/transitions/easings, context, net journal and metadata; no sampling/load/history mutation | Editable envelope only; no playback export implied. |
 | Source reattachment | Trusted host source at its actual Full XPath location, raw null/empty expectations, root attributes and a new animated ID applied from the journal | Host supplies original HTML/CSS and stable resource revision again. |
-| Same-history project opening | Original A nodes/listeners/owner preserved through B and back; old attribute and key commands still undo/redo; B settings/time remain coherent | Private root-layer workshop mapping; unsupported groups/gradient identities refuse before mutation. |
+| Same-history project opening | Original A nodes/listeners/owner preserved through B and back; old attribute and key commands still undo/redo; B settings/time remain coherent | Folders and any selector-layer gradient owner open; an ownerless gradient refuses before mutation. |
 | Opening compensation | Partial mount, Root adoption and renderer failures restore exact nodes/parents, authoring data, context, journal, owner, policy and redo | Irrecoverable compensation is a persistent fault, never a clean rejection. |
 | Replay resource guards | Mount/render invalidation on undo/redo, active A independent of unavailable B, including no CSS projection | No obsolete UI confirmation reused for replay. |
 | Files and source journal UI | Real downloads, read-only validation, explicit open/undo/redo, source metadata retained, fresh workshop root reset | Demo catalogue contains its three source fixtures only. |
-| General CSS, groups and conflict A | Reusable controls/simulations; HA10 public API is present in installed packages | Full genuine bridge mapping remains next work. |
+| Recursive inventory, targets and class groups | Genuine nested folders, nested gradient owners, class-group first edits, multi-target single undo and early refusals (`timeline-general-adapter.test.ts`) | Writes are mapped explicitly; only opacity until the atomic CSS lot. |
+| General CSS and conflict A | Reusable controls/simulations; HA10 public API is present in installed packages | Atomic CSS lot and HA10 mapping are the next work. |
 | Shared spatial projection and outputs | Existing simulations and explicit genuine unavailable states | No real source-relative mapping or faithful JSON/JS/CSS playback export claim. |
 
 Native project-opening tests use the installed packages and public fault seams. The

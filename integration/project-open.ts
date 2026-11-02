@@ -1,7 +1,7 @@
 // integration/project-open.ts
 import { CommandRefusedError, createCommand } from '@kazo-ca/timeline-editor';
 import { cloneHtmlAnimationContext } from '@kazo-ca/timeline-runtime';
-import type { ITimelineDocument } from '@kazo-ca/timeline-runtime';
+import type { ITimelineDocument, LayerNode } from '@kazo-ca/timeline-runtime';
 import { DomPreviewOwner, ProjectValidationError, decodeEditableProject, resolveProjectSourceJournal, validateEditableProject } from '../packages/designer/src/index.js';
 import type { EditableProject, HtmlDesigner, MutationResult, ProjectProfile, ProjectSourceReference } from '../packages/designer/src/index.js';
 import { fullXPath } from '../packages/designer/src/dom-origin.js';
@@ -56,14 +56,16 @@ function restoreAll(actions: readonly (() => void)[]): void {
   if (failed) throw failure;
 }
 function rawAttribute(element: Element, name: string, value: string | null): void { if (value === null) element.removeAttribute(name); else element.setAttribute(name, value); }
-/** This private workshop bridge is narrower than the general native project codec. */
+function selectorLayerIds(nodes: readonly LayerNode[]): readonly string[] {
+  return nodes.flatMap(node => node.type === 'folder' ? selectorLayerIds(node.children) : node.target && 'selector' in node.target ? [node.id] : []);
+}
+/** The general bridge maps folders and any selector layer; a gradient must still belong to one. */
 function requireWorkshopMapping(project: EditableProject): void {
   const document = project.timeline as unknown as ITimelineDocument;
   const context = cloneHtmlAnimationContext(project.htmlContext);
-  const unsupported = document.layers.some(layer => layer.type !== 'layer' || layer.id === 'gradientObject' && (!layer.target || !('selector' in layer.target) || layer.target.selector !== '#gradient-box'))
-    || Object.keys(context.gradients ?? {}).some(id => id !== 'gradientObject')
-    || Object.entries(context.bindings ?? {}).some(([id, bindings]) => id !== 'gradientObject' && Object.values(bindings).some(binding => binding.kind === 'gradient'));
-  if (unsupported) throw new Error('Cet atelier ne raccorde pas encore les groupes, les autres cibles de dégradé ou leurs identités. Le projet reste intact pour un hôte compatible.');
+  const owners = new Set(selectorLayerIds(document.layers));
+  const gradientOwners = [...Object.keys(context.gradients ?? {}), ...Object.entries(context.bindings ?? {}).flatMap(([id, bindings]) => Object.values(bindings).some(binding => binding.kind === 'gradient') ? [id] : [])];
+  if (gradientOwners.some(id => !owners.has(id))) throw new Error('Cet atelier ne raccorde pas un dégradé dont le propriétaire n’est pas un calque ciblé par sélecteur. Le projet reste intact pour un hôte compatible.');
 }
 
 /**
