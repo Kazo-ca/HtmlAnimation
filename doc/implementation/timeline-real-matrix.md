@@ -94,6 +94,14 @@ scale, pivot) to explicit `spatial*` aliases with `spatial` bindings. HA4 builti
   write. Canvas handles still refuse explicitly and point to the fields, because a live
   gesture preview through the shared owner is separate work.
 
+Playback outputs lot (branch `codex/playback-outputs`, stacked on shared geometry):
+the host's `exportPlayback(format)` uses only the public compilers. JSON and JavaScript
+come from one `compileHtmlPlayback` document read in the preview owner's source window.
+CSS comes from `exportHtmlCss`, with the scene ID as the root selector. Nothing is
+sampled, fitted or rewritten locally. A refusal never yields a partial file. Exports never
+change the document, context, history or preview, and they are unavailable during a
+fault, group or transaction. Editable saving remains independent.
+
 These packages are local unpublished archives, not an assumption about a registry release.
 
 The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
@@ -110,7 +118,7 @@ The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
 | Atomic CSS | Genuine opacity, color and logical border-style keys with typed source bases, aliases, group bases, compound single undo and early refusals (`timeline-css-atomic.test.ts`) | Other CSS declarations, named colors and r3 spatial adjustments stay explicitly unmapped. |
 | HA10 conflicts and choice A | Genuine priority decision, choice A with its announced key, one undo/redo, stale revision/signature/choice/guard refusals, canonical ID-over-class, aliased CSS name and the Designer path (`timeline-ha10-conflicts.test.ts`) | No browser journey yet; `before-first` policies are mapped generically but no native fixture produced one. |
 | HA11 spatial projection (bridge) | Genuine translate/rotate/scale/pivot keys, source capture and authored suffix, pivot base, compound single undo, unit refusal and group-source refusal (`timeline-ha11-spatial.test.ts`) | Designer geometry fields write these keys (`shared-geometry-designer.test.ts`, two genuine browser journeys); canvas handles still refuse with the shared preview; no sourceTransform capture track or explicit conversion UI yet. |
-| Outputs | Existing simulations | No faithful JSON/JS/CSS playback export claim. |
+| Playback outputs | Genuine `compileHtmlPlayback` JSON, `exportHtmlJavascript` module and all-or-nothing `exportHtmlCss` through `integration/playback-outputs.ts` (`playback-outputs-real.test.ts`, three-browser download journey) | JSON/JS are frame-sampled (held between frames); CSS is continuous or refused with Timeline’s French diagnostic and JS/JSON alternatives. The workshop stylesheet’s own animation settings make its CSS export refuse honestly. |
 
 Native project-opening tests use the installed packages and public fault seams. The
 separate `project-rehydration` tests use a simulated host and prove only the reusable
