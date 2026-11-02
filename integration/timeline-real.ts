@@ -1,7 +1,7 @@
 // integration/timeline-real.ts
 import { CommandRefusedError, createCommand, createEditor } from '@kazo-ca/timeline-editor';
 import type { EditorPlugin, EditorTransactionResult, IEditor, IEditorTransactionRequest, IHostRenderCandidate, ICommand, PropertyTimelineOperation } from '@kazo-ca/timeline-editor';
-import { composeHtmlDeclarations, createHtmlInspectionStage, createManualClock, createPropertyRegistry, prepareHtmlResolution } from '@kazo-ca/timeline-runtime';
+import { composeHtmlDeclarations, createHtmlInspectionStage, createManualClock, createPropertyRegistry, prepareHtmlResolution, readHtmlPropertyBase } from '@kazo-ca/timeline-runtime';
 import type { HtmlPropertyBinding, IHtmlAnimationContext, IHtmlGradientDefinition, IHtmlResolvedBinding, IHtmlResolvedLayer, IHtmlResolvedProperty, IHtmlStage, ILayer, ITimelineDocument, LayerNode, PropertyRegistry, TimelinePropertyValue, TimelinePropertyValues } from '@kazo-ca/timeline-runtime';
 import { applyGradientEdits, cloneGradientDefinitions, readGradientComponent } from '@kazo-ca/css-properties';
 import type { GradientComponent, GradientDefinition, GradientEdit, GradientType, GradientValue } from '@kazo-ca/css-properties';
@@ -11,6 +11,8 @@ import type { MutationResult, PropertyWrite, TimelineAdapter, TimelineReason, Ti
 import { DomPreviewOwner } from '../packages/designer/src/dom-preview.js';
 import type { ElementProjection } from '../packages/designer/src/dom-preview.js';
 import artifactManifest from '../vendor/timeline/manifest.json';
+import { propertyMapping } from './css-mappings.js';
+import type { PropertyMapping } from './css-mappings.js';
 
 export interface ProjectRenderPolicy {
     readonly active: (() => void) | null;
@@ -92,6 +94,15 @@ function initialContext(type: GradientType): IHtmlAnimationContext {
 }
 function layers(nodes: readonly LayerNode[]): readonly ILayer[] {
     return nodes.flatMap(node => node.type === 'layer' ? [node] : layers(node.children));
+}
+/** A layer is locked by its own flag or by any enclosing folder. */
+function lockedPath(nodes: readonly LayerNode[], id: string, inherited = false): boolean | undefined {
+    for (const node of nodes) {
+        const locked = inherited || node.locked === true;
+        if (node.id === id) return locked;
+        if (node.type === 'folder') { const found = lockedPath(node.children, id, locked); if (found !== undefined) return found; }
+    }
+    return undefined;
 }
 function nodeIds(nodes: readonly LayerNode[]): readonly string[] {
     return nodes.flatMap(node => node.type === 'layer' ? [node.id] : [node.id, ...nodeIds(node.children)]);
@@ -183,20 +194,6 @@ function mappedResult(result: EditorTransactionResult): MutationResult {
         case 'faulted': return { status: 'faulted', message: diagnostic(result.fault.message) };
     }
 }
-/** Explicit native property mapping for a Designer CSS write; nothing is inferred from its name. */
-interface PropertyMapping {
-    readonly property: string;
-    readonly binding: HtmlPropertyBinding;
-    readonly valueKind: TimelinePropertyValue['kind'];
-    parse(value: string): TimelinePropertyValue;
-}
-const propertyMappings: Readonly<Partial<Record<string, PropertyMapping>>> = {
-    opacity: { property: 'opacity', binding: { kind: 'style', cssName: 'opacity' }, valueKind: 'number', parse(value) {
-        const number = Number(value);
-        if (!value.trim() || !Number.isFinite(number) || number < 0 || number > 1) throw new Error('Valeur d’opacité non valide.');
-        return { kind: 'number', value: number };
-    } },
-};
 interface CreatedTarget { readonly id: string; readonly selector: string }
 /** Root-level layers for explicit first-edit targets; undo removes exactly those identities. */
 function targetCommand(created: readonly CreatedTarget[]): ICommand {
@@ -433,6 +430,25 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         }
         return { id, existing: false };
     };
+    /**
+     * Typed original base. A declared or inferable binding uses Timeline inspection; a new
+     * alias reads each member's source through the public baseline reader, never by
+     * mutating the real context, and requires one shared group base.
+     */
+    const sourceBase = (selectorText: string, target: { readonly id: string; readonly existing: boolean }, mapping: PropertyMapping, bound: boolean): TimelinePropertyValue => {
+        if (target.existing && lockedPath(editor.document.layers, target.id) !== false) throw new Error('Ce calque ou son dossier est verrouillé dans Timeline.');
+        if (bound || mapping.property === mapping.binding.cssName) {
+            const inspection = stage.inspectProperty({ selector: selectorText }, mapping.property, { ...(target.existing ? { layerId: target.id } : {}), valueKind: mapping.valueKind });
+            if (!inspection.editable || !inspection.initialValue) throw new Error(inspection.reason ?? 'Base originale indisponible.');
+            return inspection.initialValue;
+        }
+        const reads = owner.withSource(() => stage.resolveElements({ selector: selectorText }).map(element => readHtmlPropertyBase(element, { binding: mapping.binding, valueKind: mapping.valueKind })));
+        const bases = reads.map(read => { if (read.status !== 'value') throw new Error(read.reason); return read.value; });
+        const [first] = bases;
+        if (!first) throw new Error('Base originale indisponible.');
+        if (bases.some(base => JSON.stringify(base) !== JSON.stringify(first))) throw new Error('Les éléments de ce groupe ont des bases différentes pour cette propriété ; choisissez une cible plus précise.');
+        return first;
+    };
     const propertyPlan = (writes: readonly PropertyWrite[]): Pick<IEditorTransactionRequest, 'commands' | 'properties' | 'htmlContext'> => {
         if (!writes.length) return {};
         const current = stage.animationContext;
@@ -441,7 +457,7 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         const bindings: Record<string, Record<string, HtmlPropertyBinding>> = {};
         const written = new Set<string>();
         const properties = writes.map((write): PropertyTimelineOperation => {
-            const mapping = Object.hasOwn(propertyMappings, write.property) ? propertyMappings[write.property] : undefined;
+            const mapping = propertyMapping(write.property);
             if (!mapping) throw new Error(`La propriété « ${write.property} » n’a pas encore de correspondance Timeline explicite. Les ajustements spatiaux r3 restent indisponibles.`);
             const target = resolveTarget(write, created, taken);
             const key = JSON.stringify([target.id, mapping.property]);
@@ -449,11 +465,12 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
             written.add(key);
             const bound = current.bindings?.[target.id]?.[mapping.property];
             if (bound && JSON.stringify(bound) !== JSON.stringify(mapping.binding)) throw new Error('Cette propriété est déjà liée à une autre déclaration ; sa liaison n’est pas remplacée implicitement.');
+            const sibling = Object.entries(current.bindings?.[target.id] ?? {}).find(([name, candidate]) => name !== mapping.property && candidate.kind === 'style' && candidate.cssName === mapping.binding.cssName);
+            if (sibling) throw new Error(`La déclaration ${mapping.binding.cssName} est déjà animée sur cet objet par « ${sibling[0]} » ; une seconde liaison n’est pas créée.`);
             const value = mapping.parse(write.value);
-            const inspection = stage.inspectProperty({ selector: write.selector }, mapping.property, { ...(target.existing ? { layerId: target.id } : {}), valueKind: mapping.valueKind });
-            if (!inspection.editable || !inspection.initialValue) throw new Error(inspection.reason ?? 'Base originale indisponible.');
+            const initialValue = sourceBase(write.selector, target, mapping, bound !== undefined);
             bindings[target.id] = { ...current.bindings?.[target.id], ...bindings[target.id], [mapping.property]: mapping.binding };
-            return { kind: 'set', layerId: target.id, property: mapping.property, frame: write.frame, value, initialValue: inspection.initialValue };
+            return { kind: 'set', layerId: target.id, property: mapping.property, frame: write.frame, value, initialValue };
         });
         const context = { ...current, bindings: { ...current.bindings, ...bindings } };
         const targets = [...created].map(([target, id]) => ({ id, selector: target }));
