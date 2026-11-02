@@ -43,6 +43,11 @@ export interface TimelineAdapter {
   readonly contractRevision: 'HA-TL-001/r1' | 'HA-TL-001/r2';
   readonly conflicts?: ConflictCapability;
   readonly gradients?: GradientCapability;
+  /**
+   * HA11: geometry field writes are source-relative adjustments the adapter maps and renders
+   * through its shared preview owner. Canvas handles still need a live gesture preview.
+   */
+  readonly spatialGeometry?: boolean;
   /** Shared writer created before Editor; committed rendering precedes every host observation. */
   readonly preview?: DomPreviewOwner;
   getState(): TimelineState;

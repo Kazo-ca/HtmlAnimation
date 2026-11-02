@@ -14,7 +14,7 @@ import artifactManifest from '../vendor/timeline/manifest.json';
 import { propertyMapping } from './css-mappings.js';
 import type { PropertyMapping } from './css-mappings.js';
 import { createConflictCapability } from './conflict-bridge.js';
-import { captureSpatialDefinition, isSpatialComponent, parseSpatialWrite, spatialAlias, spatialBase } from './spatial-bridge.js';
+import { captureSpatialDefinition, isSpatialComponent, parseSpatialWrite, spatialAlias, spatialBase, spatialFieldValues } from './spatial-bridge.js';
 
 export interface ProjectRenderPolicy {
     readonly active: (() => void) | null;
@@ -339,7 +339,7 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         const projected: Record<string, Readonly<Record<string, string>>> = {};
         for (const object of objects) {
             const target = firstMatch(scene, object.selector);
-            if (target) projected[object.id] = declarations(target, values(object.id), object.id);
+            if (target) projected[object.id] = { ...declarations(target, values(object.id), object.id), ...spatialFieldValues(stage.animationContext.bindings?.[object.id] ?? {}, values(object.id)) };
         }
         const fault = faultMessage();
         return { frame: editor.playback.frame, duration: editor.playback.totalFrames, objects, values: projected, selectedObjectId: selection.selected()[0] ?? null, canUndo: !fault && editor.canUndo, canRedo: !fault && editor.canRedo, ...(fault ? { fault } : {}) };
@@ -511,6 +511,7 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
     };
     const adapter: TimelineAdapter = {
         kind: 'real', contractRevision: 'HA-TL-001/r2', get preview() { return owner; },
+        spatialGeometry: true,
         conflicts: createConflictCapability({ stage, findLayer, revision, run, resolveHtmlConflict: request => editor.transactions.resolveHtmlConflict(request) }),
         getState: () => disposed ? { ...lastState, canUndo: false, canRedo: false } : getState(),
         gradients: {

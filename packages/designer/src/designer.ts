@@ -12,6 +12,7 @@ import { InspectorUi } from './inspector-ui.js';
 import { resolveTarget, specificity, targetChoices } from './targets.js';
 import type { HistoryDirection, MutationResult, PreparedEffect, TimelineAdapter, TimelineReason, TimelineState } from './timeline-adapter.js';
 import { geometryContext, geometryDefaults, geometryProperties, geometryStateKey, geometryValues, isGeometryProperty, pivotCoordinates, projectGeometry, unresolvedPercentageHeight, validGeometryValue } from './geometry-dom.js';
+import type { GeometryProperty } from './geometry-dom.js';
 import { geometryLengthPixels, snapPosition, updateGeometry } from './geometry-math.js';
 import type { GeometryGuide, GeometryMetrics, GeometryState, GeometryTool, Point } from './geometry-math.js';
 import { GeometryControls } from './geometry-controls.js';
@@ -47,6 +48,7 @@ export interface DesignerOptions<T> {
 const commonProperties = ['opacity', 'width', 'height', 'position', 'left', 'top', 'transform', 'margin', 'margin-top', 'padding', 'color', 'background', 'background-color', 'background-image', 'border', 'border-radius', 'box-shadow', 'text-shadow', 'font', 'font-family', 'font-size'];
 const labels: Readonly<Record<string, string>> = { opacity: 'Opacité', width: 'Largeur', height: 'Hauteur', 'margin-top': 'Marge supérieure', 'background-color': 'Couleur de fond', color: 'Couleur', transform: 'Transformation', translateX: 'Déplacement X', translateY: 'Déplacement Y', rotation: 'Rotation', rotate: 'Rotation CSS', scaleX: 'Échelle X', scaleY: 'Échelle Y', pivotX: 'Pivot X', pivotY: 'Pivot Y' };
 const sharedGeometryReason = 'Les poignées géométriques ne sont pas encore disponibles avec l’aperçu partagé.';
+const sharedHandlesReason = 'Les poignées géométriques ne sont pas encore disponibles avec l’aperçu partagé ; utilisez les champs de géométrie.';
 
 export class HtmlDesigner<T = unknown> {
   private readonly scene: HTMLElement;
@@ -317,7 +319,7 @@ export class HtmlDesigner<T = unknown> {
     if (this.disposed) return this.reject('Le Designer est fermé.');
     if (this.gesture) return this.reject('Terminez ou annulez le geste en cours avant une autre édition.');
     if (!changes.length) return { status: 'unchanged' };
-    if (this.adapter.preview && changes.some(change => isGeometryProperty(change.property))) return this.reject(sharedGeometryReason);
+    if (this.adapter.preview && !this.adapter.spatialGeometry && changes.some(change => isGeometryProperty(change.property))) return this.reject(sharedGeometryReason);
     if (!this.target || !this.elements.length) return this.reject('Choisissez une cible avant d’enregistrer la propriété.');
     if (!this.elements.every(element => resolveTarget(this.scene, this.target ?? '').includes(element))) return this.reject('La cible ne correspond plus à la sélection. Choisissez sa nouvelle référence.');
     if (new Set(changes.map(change => change.property)).size !== changes.length) return this.reject('Une propriété ne peut apparaître qu’une fois dans la commande.');
@@ -407,7 +409,8 @@ export class HtmlDesigner<T = unknown> {
     return result;
   }
   private compatible(property: string): boolean { return this.elements.length <= 1 || isGeometryProperty(property) || new Set(this.elements.map(element => this.origin.fingerprint(element, property))).size <= 1; }
-  private displayValue(property: string, computed?: ReadonlyMap<HTMLElement, CSSStyleDeclaration>): string {
+  private displayValue(property: string, computed?: ReadonlyMap<HTMLElement, CSSStyleDeclaration>, snapshot?: TimelineState): string {
+    if (this.adapter.preview && this.adapter.spatialGeometry && isGeometryProperty(property)) return this.sharedGeometryValue(property, snapshot ?? this.adapter.getState());
     if (this.adapter.preview) {
       const values = new Set(this.elements.map(element => this.projectedValues.get(element)?.[property] ?? (computed?.get(element) ?? element.ownerDocument.defaultView?.getComputedStyle(element))?.getPropertyValue(property) ?? ''));
       return values.size === 1 ? [...values][0] ?? '' : '';
@@ -426,6 +429,14 @@ export class HtmlDesigner<T = unknown> {
       return values.size === 1 ? [...values][0] ?? '' : '';
     }
     const values = new Set(this.elements.map(element => (computed?.get(element) ?? element.ownerDocument.defaultView?.getComputedStyle(element))?.getPropertyValue(property) ?? ''));
+    return values.size === 1 ? [...values][0] ?? '' : '';
+  }
+  /** Adapter-evaluated adjustment of the target object, or the source default; never a preview readout. */
+  private sharedGeometryValue(property: GeometryProperty, state: TimelineState): string {
+    const object = state.objects.find(candidate => candidate.selector === this.target);
+    const value = object ? state.values[object.id]?.[property] : undefined;
+    if (value !== undefined) return value;
+    const values = new Set(this.elements.map(element => geometryDefaults(this.origin, element)[geometryStateKey(property)]));
     return values.size === 1 ? [...values][0] ?? '' : '';
   }
   public getGeometryState(): GeometryState | null {
@@ -452,7 +463,7 @@ export class HtmlDesigner<T = unknown> {
   }
   public beginGeometryGesture(tool: GeometryTool): MutationResult {
     if (this.fault) return this.faultResult();
-    if (this.adapter.preview) return this.reject(sharedGeometryReason);
+    if (this.adapter.preview) return this.reject(this.adapter.spatialGeometry ? sharedHandlesReason : sharedGeometryReason);
     this.gradientController?.cancel(false);
     if (this.disposed || this.mode !== 'select') return this.reject('Les outils géométriques sont disponibles en mode Sélection.');
     if (this.gesture) return this.reject('Un geste est déjà en cours.');
@@ -477,7 +488,7 @@ export class HtmlDesigner<T = unknown> {
   public isGeometryGestureActive(): boolean { return this.gesture !== null; }
   public updateGeometryGesture(delta: Point, settings: { allowUnitReplacement?: boolean; bypassSnap?: boolean } = {}): GeometryUpdateResult {
     if (this.fault) return this.faultResult();
-    if (this.adapter.preview) return this.reject(sharedGeometryReason);
+    if (this.adapter.preview) return this.reject(this.adapter.spatialGeometry ? sharedHandlesReason : sharedGeometryReason);
     const gesture = this.gesture;
     if (!gesture) return this.reject('Aucun geste géométrique en cours.');
     if (this.adapter.getState().frame !== gesture.frame || this.target !== gesture.selector || !this.scene.contains(gesture.element)) { this.cancelGeometryGesture(); return this.reject('Le contexte du geste a changé.'); }
@@ -625,11 +636,13 @@ export class HtmlDesigner<T = unknown> {
     const element = this.elements[0];
     const properties = element ? [...new Set([...commonProperties, ...geometryProperties, ...this.origin.properties(element)])] : [];
     const computed = new Map<HTMLElement, CSSStyleDeclaration>();
+    // One adapter evaluation per panel refresh, shared by every field.
+    const state = this.adapter.getState();
     for (const selected of this.elements) { const style = selected.ownerDocument.defaultView?.getComputedStyle(selected); if (style) computed.set(selected, style); }
     const descriptors: CssProperty[] = properties.map((name): CssProperty => {
-      const compatible = this.compatible(name); const value = this.displayValue(name, computed);
+      const compatible = this.compatible(name); const value = this.displayValue(name, computed, state);
       const gradientOwned = this.gradientController?.blocksCssProperty(name) ?? false;
-      const sharedGeometry = Boolean(this.adapter.preview) && isGeometryProperty(name);
+      const sharedGeometry = Boolean(this.adapter.preview) && !this.adapter.spatialGeometry && isGeometryProperty(name);
       return { name, label: labels[name] ?? name, value, disabled: this.fault !== null || !compatible || gradientOwned || sharedGeometry, ...(isGeometryProperty(name) ? { editor: name === 'scaleX' || name === 'scaleY' ? 'number' : 'dimension' } : {}), ...(this.fault ? { diagnostic: this.fault } : !compatible ? { diagnostic: 'Valeurs d’origine différentes. Utilisez des ID individuels pour cette propriété.' } : gradientOwned ? { diagnostic: 'Fond piloté par des pistes de dégradé indépendantes. Utilisez le contrôle Dégradé.' } : sharedGeometry ? { diagnostic: sharedGeometryReason } : (this.elements.length > 1 && !value ? { diagnostic: 'Valeurs d’aperçu différentes. Une cible plus spécifique peut rester prioritaire.' } : {})) };
     });
     this.panel.setProperties(descriptors);

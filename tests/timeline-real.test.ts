@@ -171,7 +171,7 @@ describe('Designer with genuine installed Timeline packages', () => {
         designer.undo();
         expect(host.editor.document).toEqual(before);
     });
-    it('uses the actual Timeline selection service and refuses unproved host/spatial effects', () => {
+    it('uses the actual Timeline selection service, refuses an animated target rename and maps HA11 rotation', () => {
         const { host, designer, element } = setup();
         const selection = host.editor.getService('layers.selection');
         expect(selection).toBeDefined();
@@ -181,8 +181,11 @@ describe('Designer with genuine installed Timeline packages', () => {
         expect(selection?.selected()).toEqual(['gradientObject']);
         const before = host.editor.document;
         expect(designer.setAttribute(element, 'class', 'changed').status).toBe('rejected');
-        expect(designer.editProperty('rotation', '45deg').status).toBe('rejected');
         expect(host.editor.document).toBe(before);
+        expect(designer.editProperty('rotation', '45deg').status).toBe('changed');
+        const layer = host.editor.document.layers.find(candidate => candidate.id === 'gradientObject');
+        expect(layer?.type === 'layer' ? Object.keys(layer.propertyTimelines ?? {}) : []).toEqual(['spatialRotation']);
+        expect(designer.undo().status).toBe('changed'); expect(host.editor.document).toEqual(before);
     });
     it('refuses nested mutation requests synchronously while notifying, then accepts a later retry', () => {
         const { host, designer } = setup();
