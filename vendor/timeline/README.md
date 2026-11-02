@@ -12,9 +12,10 @@ All three archives are installed together; runtime must be deduplicated.
 
 No package has been published by this repository. The reusable controls and Designer
 keep their framework-free/injected runtime boundary. Genuine tests are separate
-from recorded simulations. The active HA7 set implements the selected crossing policy;
-the historical HA6 set does not. Neither delivers the pending HA8 atomic host-context/
-effect transaction. See the real consumer matrix for the exact verified scope.
+from recorded simulations. The active HA8 set implements crossing and atomic host-context/
+effect transactions; historical HA6/7 sets are retained. Its inspection stage leaves
+preview rendering to the host. Prepared host rendering before every backend notification
+is still an open consumer integration requirement; see the real matrix for verified scope.
 
 Never replace content at an existing commit path. Add a newly verified set under
 its new exact commit and explicitly update the manifest, dependencies and evidence.

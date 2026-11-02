@@ -75,9 +75,9 @@ export class InspectorUi {
     this.target.hidden = false; this.targetSelect.focus();
   }
   public hideTargets(): void { this.target.hidden = true; }
-  public setChanges(changes: readonly DocumentChange[]): void {
+  public setChanges(changes: readonly DocumentChange[], provisional = false): void {
     const doc = this.root.ownerDocument; const title = doc.createElement('strong');
-    title.textContent = changes.length ? `Document original modifié · ${changes.length}` : 'Document original inchangé';
+    title.textContent = changes.length ? `${provisional ? 'Modifications provisoires du document' : 'Document original modifié'} · ${changes.length}` : 'Document original inchangé';
     const list = doc.createElement('ol');
     for (const change of changes) {
       const item = doc.createElement('li'); item.textContent = `${change.fullXPath} · ${change.attribute} : ${change.oldValue ?? '(absent)'} → ${change.newValue ?? '(absent)'}`; list.append(item);

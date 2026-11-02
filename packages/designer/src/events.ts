@@ -1,6 +1,7 @@
 // packages/designer/src/events.ts
 import type { ConflictResolution } from './conflict-types.js';
 import type { GradientDefinition } from '@kazo-ca/css-properties';
+import type { ProjectChange } from './project/rehydration.js';
 export interface DocumentChange {
   readonly fullXPath: string;
   readonly attribute: 'id' | 'class';
@@ -15,6 +16,7 @@ export interface DesignerEvents {
   gradientchange: { readonly objectId: string; readonly definitions: readonly GradientDefinition[]; readonly direction: 'execute' | 'undo' | 'redo' };
   diagnostic: { readonly message: string };
   fault: { readonly message: string };
+  projectchange: ProjectChange;
 }
 export class DesignerEmitter {
   private readonly listeners = new Map<keyof DesignerEvents, Set<(event: never) => void>>();

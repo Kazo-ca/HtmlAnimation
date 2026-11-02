@@ -4,11 +4,13 @@ import type { CssProperty } from '@kazo-ca/css-properties';
 import { HierarchicalDomTree } from '@kazo-ca/hierarchical-dom-tree';
 import type { TreeSelectionContext } from '@kazo-ca/hierarchical-dom-tree';
 import { DomOrigin } from './dom-origin.js';
+import { getDomPreviewOrigin, getDomPreviewScene } from './dom-preview.js';
+import type { ElementProjection } from './dom-preview.js';
 import { DesignerEmitter } from './events.js';
 import type { DesignerEvents, DocumentChange } from './events.js';
 import { InspectorUi } from './inspector-ui.js';
 import { resolveTarget, specificity, targetChoices } from './targets.js';
-import type { MutationResult, TimelineAdapter, TimelineReason } from './timeline-adapter.js';
+import type { HistoryDirection, MutationResult, PreparedEffect, TimelineAdapter, TimelineReason, TimelineState } from './timeline-adapter.js';
 import { geometryContext, geometryDefaults, geometryProperties, geometryStateKey, geometryValues, isGeometryProperty, pivotCoordinates, projectGeometry, unresolvedPercentageHeight, validGeometryValue } from './geometry-dom.js';
 import { geometryLengthPixels, snapPosition, updateGeometry } from './geometry-math.js';
 import type { GeometryGuide, GeometryMetrics, GeometryState, GeometryTool, Point } from './geometry-math.js';
@@ -22,6 +24,10 @@ import type { ProjectionCandidate } from './conflicts.js';
 import { GradientController } from './gradient-controller.js';
 import type { GradientColor, GradientEdit } from '@kazo-ca/css-properties';
 import type { GradientSnapshot } from './gradient-types.js';
+import { copyProjectState, projectProfile } from './project/rehydration.js';
+import type { ProjectChange, ProjectProfile, ProjectRehydrationState, ProjectState } from './project/rehydration.js';
+import { validateEditableProject } from './project/validation.js';
+import { ProjectValidationError } from './project/types.js';
 
 export interface PropertyEdit { readonly property: string; readonly newValue: string; readonly capture?: boolean }
 interface GeometryGesture {
@@ -40,11 +46,12 @@ export interface DesignerOptions<T> {
 }
 const commonProperties = ['opacity', 'width', 'height', 'position', 'left', 'top', 'transform', 'margin', 'margin-top', 'padding', 'color', 'background', 'background-color', 'background-image', 'border', 'border-radius', 'box-shadow', 'text-shadow', 'font', 'font-family', 'font-size'];
 const labels: Readonly<Record<string, string>> = { opacity: 'Opacité', width: 'Largeur', height: 'Hauteur', 'margin-top': 'Marge supérieure', 'background-color': 'Couleur de fond', color: 'Couleur', transform: 'Transformation', translateX: 'Déplacement X', translateY: 'Déplacement Y', rotation: 'Rotation', rotate: 'Rotation CSS', scaleX: 'Échelle X', scaleY: 'Échelle Y', pivotX: 'Pivot X', pivotY: 'Pivot Y' };
+const sharedGeometryReason = 'Les poignées géométriques ne sont pas encore disponibles avec l’aperçu partagé.';
 
 export class HtmlDesigner<T = unknown> {
   private readonly scene: HTMLElement;
   private readonly adapter: TimelineAdapter;
-  private readonly origin: DomOrigin;
+  private origin: DomOrigin;
   private readonly panel: CssPropertiesPanel;
   private readonly tree: HierarchicalDomTree;
   private readonly ui: InspectorUi;
@@ -75,12 +82,15 @@ export class HtmlDesigner<T = unknown> {
   private fault: string | null = null;
   private mutationDepth = 0;
   private deferredNotifications: TimelineReason[] = [];
+  private transactionPreview = false;
+  private projectProfile: ProjectProfile | null = null;
+  private pendingProjectChange: ProjectChange | null = null;
 
   public constructor(options: DesignerOptions<T>) {
     this.scene = options.scene; this.adapter = options.adapter(options.timeline);
     this.scrollRoots = [options.scene, options.propertiesContainer, options.treeContainer];
     if (!['HA-TL-001/r1', 'HA-TL-001/r2'].includes(this.adapter.contractRevision)) throw new Error('Révision de contrat Timeline incompatible.');
-    this.origin = new DomOrigin(this.scene);
+    this.origin = this.adapter.preview ? getDomPreviewOrigin(this.adapter.preview) : new DomOrigin(this.scene);
     this.ui = new InspectorUi(options.propertiesContainer, {
       chooseTarget: selector => this.commitTarget(selector),
       cancelTarget: () => { this.pending = null; this.pendingGeometryTarget = false; this.ui.hideTargets(); this.refreshPanel(); },
@@ -92,7 +102,7 @@ export class HtmlDesigner<T = unknown> {
     this.tree = new HierarchicalDomTree(options.treeContainer, { root: this.scene });
     this.subscriptions.push(this.panel.onChange(change => this.requestEdit(change.property, change.newValue)), this.tree.onSelectionChange((elements, context) => this.selectTreeElements(elements, context)), this.adapter.onChange(reason => this.timelineChanged(reason)));
     this.geometryControls = new GeometryControls(this.ui.root, { scene: this.scene, read: () => this.geometryView(), setTool: tool => this.setGeometryTool(tool), begin: tool => this.beginGeometryGesture(tool), update: (delta, settings) => this.updateGeometryGesture(delta, settings), commit: () => this.commitGeometryGesture(), cancel: () => this.cancelGeometryGesture(), setOptions: settings => this.setGeometryOptions(settings), setPivot: (x, y) => this.setGeometryPivot(x, y) });
-    this.gradientController = new GradientController(this.ui.root, this.scene, this.adapter, { refresh: () => this.render(), report: message => this.report(message), fault: message => this.enterFault(message), mutate: action => this.runMutation(action), property: event => this.emitter.emit('propertychange', event), context: event => this.emitter.emit('gradientchange', event) });
+    this.gradientController = new GradientController(this.ui.root, this.scene, this.adapter, { refresh: () => this.render(), draft: preview => this.projectGradientDraft(preview), report: message => this.report(message), fault: message => this.enterFault(message), mutate: action => this.runMutation(action), property: event => this.emitter.emit('propertychange', event), context: event => this.emitter.emit('gradientchange', event) });
     this.scene.ownerDocument.addEventListener('keydown', event => { if (event.key === 'Escape' && this.gesture) { event.preventDefault(); this.cancelGeometryGesture(); } }, { signal: this.abort.signal });
     this.scene.addEventListener('click', event => {
       if (this.mode === 'test') return;
@@ -105,6 +115,66 @@ export class HtmlDesigner<T = unknown> {
   }
   public on<K extends keyof DesignerEvents>(type: K, listener: (event: DesignerEvents[K]) => void): () => void { return this.emitter.on(type, listener); }
   public getDocumentChanges(): readonly DocumentChange[] { return this.changes.map(change => ({ ...change })); }
+  public getProjectState(): ProjectState | null {
+    return this.projectProfile ? copyProjectState({ ...this.projectProfile, documentChanges: this.changes }) : null;
+  }
+  /** Trusted host opening only: publish terminal success after its final flush succeeds. */
+  public executeProjectMutation(action: () => MutationResult): MutationResult {
+    if (this.disposed) return { status: 'rejected', message: 'Le Designer est fermé.' };
+    return this.runMutation(action);
+  }
+  /** A host participant: preparation captures memory only; the host owns source mounting. */
+  public prepareProjectRehydration(readNext: () => ProjectRehydrationState, direction: HistoryDirection): PreparedEffect {
+    this.requireProjectRehydration();
+    const capture = {
+      origin: this.origin, profile: this.projectProfile, changes: this.changes,
+      elements: [...this.elements], target: this.target, projectedValues: new Map(this.projectedValues),
+      pending: this.pending, document: this.pendingDocumentChange, project: this.pendingProjectChange,
+      notifications: [...this.deferredNotifications], epoch: this.contextEpoch, conflict: this.pendingConflict,
+      resolutionsKey: this.resolutionsKey, transactionPreview: this.transactionPreview,
+      gesture: this.gesture ? { ...this.gesture, state: { ...this.gesture.state }, values: { ...this.gesture.values }, guides: [...this.gesture.guides] } : null,
+      geometryTarget: this.pendingGeometryTarget, geometryTool: this.geometryTool, geometryOptions: { ...this.geometryOptions },
+      mode: this.mode, gradient: this.gradientController?.captureSession(),
+    };
+    let started = false;
+    return {
+      changed: true,
+      apply: () => {
+        this.requireProjectRehydration();
+        const next = readNext();
+        const result = validateEditableProject(next.project, next.validation);
+        if (result.status === 'invalid') throw new ProjectValidationError(result.issues);
+        if (getDomPreviewScene(next.preview) !== this.scene || this.adapter.preview !== next.preview) throw new Error('Le projet doit utiliser le propriétaire courant de la même scène HTML.');
+        const origin = getDomPreviewOrigin(next.preview);
+        const profile = projectProfile(result.project);
+        const event: ProjectChange = { ...copyProjectState({ ...profile, documentChanges: result.project.documentChanges }), direction };
+        // Mark before the first assignment: compensation also covers a partially applied setter.
+        started = true;
+        this.origin = origin; this.projectProfile = profile; this.changes = result.project.documentChanges;
+        this.elements = []; this.target = null; this.projectedValues = new Map();
+        this.pending = null; this.pendingDocumentChange = null; this.deferredNotifications = [];
+        this.contextEpoch++; this.pendingConflict = null; this.resolutionsKey = '';
+        this.gesture = null; this.pendingGeometryTarget = false; this.transactionPreview = false;
+        this.gradientController?.resetForProject(); this.pendingProjectChange = event;
+      },
+      rollback: () => {
+        if (!started) return;
+        this.origin = capture.origin; this.projectProfile = capture.profile; this.changes = capture.changes;
+        this.elements = [...capture.elements]; this.target = capture.target; this.projectedValues = new Map(capture.projectedValues);
+        this.pending = capture.pending; this.pendingDocumentChange = this.fault ? null : capture.document;
+        this.pendingProjectChange = this.fault ? null : capture.project; this.deferredNotifications = this.fault ? [] : [...capture.notifications];
+        this.contextEpoch = capture.epoch; this.pendingConflict = this.fault ? null : capture.conflict;
+        this.resolutionsKey = capture.resolutionsKey; this.transactionPreview = capture.transactionPreview;
+        this.gesture = this.fault ? null : capture.gesture; this.pendingGeometryTarget = !this.fault && capture.geometryTarget;
+        this.geometryTool = capture.geometryTool; this.geometryOptions = { ...capture.geometryOptions }; this.mode = capture.mode;
+        if (capture.gradient) this.gradientController?.restoreSession(capture.gradient);
+      },
+    };
+  }
+  private requireProjectRehydration(): void {
+    if (this.disposed) throw new Error('Le Designer est fermé.');
+    if (this.fault) throw new Error(this.fault);
+  }
   public getFault(): string | null { return this.fault; }
   public getGradientState(): GradientSnapshot | null { return this.gradientController?.getState() ?? null; }
   public editGradient(changes: readonly GradientEdit[]): MutationResult { return this.runMutation(() => this.gradientController?.edit(changes) ?? this.reject('Aucun dégradé structuré disponible.')); }
@@ -184,7 +254,9 @@ export class HtmlDesigner<T = unknown> {
   }
   private timelineChanged(reason: TimelineReason): void {
     if (this.syncing || this.disposed) return;
-    this.gradientController?.cancel(false);
+    if (reason === 'preview') this.transactionPreview = true;
+    if (reason === 'cancel' || reason === 'execute' || reason === 'undo' || reason === 'redo') this.transactionPreview = false;
+    this.gradientController?.cancel(false, reason === 'selection');
     this.cancelConflict();
     if (this.gesture) { this.gesture = null; }
     if (reason === 'selection') {
@@ -194,12 +266,21 @@ export class HtmlDesigner<T = unknown> {
       else { this.target = null; this.elements = []; }
       this.emitter.emit('selectionchange', { elements: this.elements, objectId: state.selectedObjectId });
     }
+    if (this.pendingProjectChange && ['execute', 'undo', 'redo'].includes(reason)) { this.tree.refresh(); this.ui.hideTargets(); }
     this.render();
-    if (this.fault) { this.pendingDocumentChange = null; return; }
+    if (this.fault) { this.pendingDocumentChange = null; this.pendingProjectChange = null; return; }
     if (this.mutationDepth) { this.deferredNotifications.push(reason); return; }
     this.notifyTimelineChange(reason);
   }
   private notifyTimelineChange(reason: TimelineReason): void {
+    if (reason === 'cancel') { this.pendingDocumentChange = null; this.pendingProjectChange = null; return; }
+    if (reason === 'preview' || this.transactionPreview) return;
+    if (this.pendingProjectChange) {
+      if (!['execute', 'undo', 'redo'].includes(reason)) return;
+      this.gradientController?.resetContexts(); this.resolutionsKey = JSON.stringify(this.getConflictState()?.resolutions ?? []);
+      const event = this.pendingProjectChange; this.pendingProjectChange = null; this.pendingDocumentChange = null;
+      this.emitter.emit('projectchange', event); return;
+    }
     this.gradientController?.observe(reason);
     const resolutions = this.getConflictState()?.resolutions ?? [];
     const resolutionsKey = JSON.stringify(resolutions);
@@ -236,6 +317,7 @@ export class HtmlDesigner<T = unknown> {
     if (this.disposed) return this.reject('Le Designer est fermé.');
     if (this.gesture) return this.reject('Terminez ou annulez le geste en cours avant une autre édition.');
     if (!changes.length) return { status: 'unchanged' };
+    if (this.adapter.preview && changes.some(change => isGeometryProperty(change.property))) return this.reject(sharedGeometryReason);
     if (!this.target || !this.elements.length) return this.reject('Choisissez une cible avant d’enregistrer la propriété.');
     if (!this.elements.every(element => resolveTarget(this.scene, this.target ?? '').includes(element))) return this.reject('La cible ne correspond plus à la sélection. Choisissez sa nouvelle référence.');
     if (new Set(changes.map(change => change.property)).size !== changes.length) return this.reject('Une propriété ne peut apparaître qu’une fois dans la commande.');
@@ -287,15 +369,49 @@ export class HtmlDesigner<T = unknown> {
       if (this.target && !this.elements.every(selected => resolveTarget(this.scene, this.target ?? '').includes(selected))) this.target = null;
       this.pendingDocumentChange = { changes: [change], direction };
     };
-    return this.runMutation(() => this.adapter.execute(`Change ${attribute}`, [], {
+    const result = this.runMutation(() => this.adapter.execute(`Change ${attribute}`, [], {
       redo: () => { apply(newValue, after, first ? 'execute' : 'redo'); first = false; },
       undo: () => apply(oldValue, before, 'undo'),
+      prepare: direction => {
+        const value = direction === 'undo' ? oldValue : newValue;
+        const expected = direction === 'undo' ? newValue : oldValue;
+        if (this.disposed || !this.origin.has(element) || !this.scene.contains(element)) throw new Error('La cible du document original n’est plus disponible.');
+        if (element.getAttribute(attribute) !== expected) throw new Error('L’attribut source a changé hors de cette commande. Rechargez un projet cohérent.');
+        if (attribute === 'id' && value !== null && Array.from(element.ownerDocument.querySelectorAll('[id]')).some(candidate => candidate !== element && candidate.id === value)) throw new Error('Cet identifiant est maintenant utilisé par un autre élément.');
+        // Preparation is read-only. Compensation restores this exact capture rather
+        // than executing an inverse user action that would prepare another event.
+        const capture = { value: element.getAttribute(attribute), changes: this.changes, pending: this.pendingDocumentChange, notifications: [...this.deferredNotifications], target: this.target, first };
+        return {
+          changed: capture.value !== value,
+          apply: () => { apply(value, direction === 'undo' ? before : after, direction); if (direction !== 'undo') first = false; },
+          rollback: () => {
+            if (capture.value === null) element.removeAttribute(attribute); else element.setAttribute(attribute, capture.value);
+            this.changes = capture.changes; this.pendingDocumentChange = capture.pending;
+            this.deferredNotifications = [...capture.notifications]; this.target = capture.target; first = capture.first;
+            this.tree.refresh();
+          },
+        };
+      },
     }));
+    if (result.status === 'rejected') { this.render(); return this.reject(result.message); }
+    return result;
   }
-  public undo(): MutationResult { if (this.fault) return this.faultResult(); this.gradientController?.cancel(false); this.cancelConflict(); this.cancelGeometryGesture(); return this.disposed ? { status: 'unchanged' } : this.runMutation(() => this.adapter.undo()); }
-  public redo(): MutationResult { if (this.fault) return this.faultResult(); this.gradientController?.cancel(false); this.cancelConflict(); this.cancelGeometryGesture(); return this.disposed ? { status: 'unchanged' } : this.runMutation(() => this.adapter.redo()); }
+  public undo(): MutationResult { return this.changeHistory('undo'); }
+  public redo(): MutationResult { return this.changeHistory('redo'); }
+  private changeHistory(direction: 'undo' | 'redo'): MutationResult {
+    if (this.fault) return this.faultResult();
+    this.gradientController?.cancel(false); this.cancelConflict(); this.cancelGeometryGesture();
+    if (this.disposed) return { status: 'unchanged' };
+    const result = this.runMutation(() => this.adapter[direction]());
+    if (result.status === 'rejected') { this.render(); return this.reject(result.message); }
+    return result;
+  }
   private compatible(property: string): boolean { return this.elements.length <= 1 || isGeometryProperty(property) || new Set(this.elements.map(element => this.origin.fingerprint(element, property))).size <= 1; }
   private displayValue(property: string, computed?: ReadonlyMap<HTMLElement, CSSStyleDeclaration>): string {
+    if (this.adapter.preview) {
+      const values = new Set(this.elements.map(element => this.projectedValues.get(element)?.[property] ?? (computed?.get(element) ?? element.ownerDocument.defaultView?.getComputedStyle(element))?.getPropertyValue(property) ?? ''));
+      return values.size === 1 ? [...values][0] ?? '' : '';
+    }
     const state = this.adapter.getState();
     const object = state.objects.find(candidate => candidate.selector === this.target);
     const value = object ? state.values[object.id]?.[property] : undefined;
@@ -313,6 +429,7 @@ export class HtmlDesigner<T = unknown> {
     return values.size === 1 ? [...values][0] ?? '' : '';
   }
   public getGeometryState(): GeometryState | null {
+    if (this.adapter.preview) return null;
     if (this.gesture) return { ...this.gesture.state, ...this.gesture.values };
     const element = this.elements.length === 1 ? this.elements[0] : undefined;
     if (!element || this.disposed) return null;
@@ -323,7 +440,7 @@ export class HtmlDesigner<T = unknown> {
     return { translateX: evaluated.translateX ?? defaults.translateX, translateY: evaluated.translateY ?? defaults.translateY, rotate: evaluated.rotation ?? defaults.rotate, scaleX: evaluated.scaleX ?? defaults.scaleX, scaleY: evaluated.scaleY ?? defaults.scaleY, pivotX: evaluated.pivotX ?? defaults.pivotX, pivotY: evaluated.pivotY ?? defaults.pivotY, width: evaluated.width ?? defaults.width, height: unresolvedPercentageHeight(element, height) ? 'auto' : height };
   }
   private geometryView(): GeometryView {
-    return { element: this.elements.length === 1 ? this.elements[0] ?? null : null, state: this.getGeometryState(), tool: this.geometryTool, mode: this.fault ? 'test' : this.mode, active: this.gesture !== null, options: this.geometryOptions, guides: this.gesture?.guides ?? [] };
+    return { element: !this.adapter.preview && this.elements.length === 1 ? this.elements[0] ?? null : null, state: this.getGeometryState(), tool: this.geometryTool, mode: this.fault ? 'test' : this.mode, active: this.gesture !== null, options: this.geometryOptions, guides: this.gesture?.guides ?? [] };
   }
   public setGeometryTool(tool: GeometryTool): void {
     if (!['move', 'dimensions', 'rotate', 'scale', 'pivot'].includes(tool)) { this.report('Outil géométrique inconnu.'); return; }
@@ -335,6 +452,7 @@ export class HtmlDesigner<T = unknown> {
   }
   public beginGeometryGesture(tool: GeometryTool): MutationResult {
     if (this.fault) return this.faultResult();
+    if (this.adapter.preview) return this.reject(sharedGeometryReason);
     this.gradientController?.cancel(false);
     if (this.disposed || this.mode !== 'select') return this.reject('Les outils géométriques sont disponibles en mode Sélection.');
     if (this.gesture) return this.reject('Un geste est déjà en cours.');
@@ -359,6 +477,7 @@ export class HtmlDesigner<T = unknown> {
   public isGeometryGestureActive(): boolean { return this.gesture !== null; }
   public updateGeometryGesture(delta: Point, settings: { allowUnitReplacement?: boolean; bypassSnap?: boolean } = {}): GeometryUpdateResult {
     if (this.fault) return this.faultResult();
+    if (this.adapter.preview) return this.reject(sharedGeometryReason);
     const gesture = this.gesture;
     if (!gesture) return this.reject('Aucun geste géométrique en cours.');
     if (this.adapter.getState().frame !== gesture.frame || this.target !== gesture.selector || !this.scene.contains(gesture.element)) { this.cancelGeometryGesture(); return this.reject('Le contexte du geste a changé.'); }
@@ -418,17 +537,50 @@ export class HtmlDesigner<T = unknown> {
     if (result.status !== 'changed') { this.cancelGeometryGesture(); return result.status === 'confirmation-required' ? this.reject(result.message) : result; }
     return this.commitGeometryGesture();
   }
+  /** A local gradient gesture overlays resolved CSS on the host's committed projection. */
+  private projectGradientDraft(preview: ReturnType<GradientController['getPreview']>): MutationResult {
+    const owner = this.adapter.preview;
+    if (!owner) return { status: 'unchanged' };
+    if (this.fault) return this.faultResult();
+    let effect: PreparedEffect | undefined;
+    try {
+      let projection: readonly ElementProjection[] | null = null;
+      if (preview) {
+        const object = this.adapter.getState().objects.find(candidate => candidate.id === preview.objectId);
+        const targets = object ? resolveTarget(this.scene, object.selector) : [];
+        const element = targets[0];
+        if (!object || targets.length !== 1 || !element?.id || object.selector !== `#${element.id}` || this.target !== object.selector) throw new Error('Choisissez une cible ID individuelle pour l’aperçu local du dégradé partagé.');
+        const entries = new Map(owner.getCommittedProjection().map(entry => [entry.element, entry.declarations]));
+        entries.set(element, { ...entries.get(element), ...preview.declarations });
+        projection = [...entries].map(([element, declarations]) => ({ element, declarations }));
+      }
+      effect = owner.prepareDraft(projection);
+      if (!effect.changed) return { status: 'unchanged' };
+      effect.apply();
+      return { status: 'changed' };
+    } catch (error) {
+      if (effect) {
+        try { effect.rollback(); }
+        catch { return { status: 'faulted', message: 'L’aperçu local n’a pas pu être compensé. Restaurez un projet cohérent avant de reprendre.' }; }
+      }
+      return { status: 'rejected', message: error instanceof Error && error.message.trim() ? error.message : 'L’aperçu local du dégradé a été refusé.' };
+    }
+  }
   private render(): void {
     const restoreScroll = capturePreviewScroll([...this.projectedValues.keys(), ...this.elements, ...this.scrollRoots]);
     try { this.projectPreview(); }
     finally { if (restoreScroll()) this.highlight(); }
   }
   private projectPreview(): void {
-    this.origin.restore();
-    this.projectedValues = new Map();
+    if (!this.adapter.preview) { this.origin.restore(); this.projectedValues = new Map(); }
     const state = this.adapter.getState();
     if (state.fault !== undefined) this.enterFault(state.fault);
     const conflicts = this.getConflictState();
+    if (this.adapter.preview) {
+      this.projectedValues = new Map(this.adapter.preview.getProjection().map(entry => [entry.element, entry.declarations]));
+      this.observePreview(state, conflicts);
+      return;
+    }
     const applied = new Map<HTMLElement, Map<string, ProjectionCandidate[]>>();
     const draft = this.gesture ? { ...geometryValues(this.gesture.values), ...(this.gesture.convertedTransform ? { transform: this.gesture.convertedTransform } : {}) } : {};
     const sources = state.objects.map(object => ({ ...object, values: { ...state.values[object.id], ...(object.selector === this.gesture?.selector ? draft : {}) } }));
@@ -458,9 +610,13 @@ export class HtmlDesigner<T = unknown> {
       for (const [property, value] of Object.entries(values)) if (!isGeometryProperty(property) && !(hasGeometry && property === 'transform')) this.origin.applyPreview(element, property, value);
       if (hasGeometry) projectGeometry(this.origin, element, values);
     }
+    this.observePreview(state, conflicts);
+  }
+  /** Shared owners have already rendered; this path only updates the controls. */
+  private observePreview(state: TimelineState, conflicts: ConflictSnapshot | null): void {
     this.tree.setSelection(this.elements);
     this.ui.setSelection(this.target ?? (this.elements[0] ? `${this.elements[0].localName}${this.elements[0].id ? `#${this.elements[0].id}` : ''} · inspection` : 'Sélectionnez un élément'), this.elements.length === 1 ? this.elements[0] : undefined);
-    this.ui.setChanges(this.changes); this.conflictsUi.render(conflicts);
+    this.ui.setChanges(this.changes, this.transactionPreview); this.conflictsUi.render(conflicts);
     this.gradientController?.refresh(state.objects.find(object => object.selector === this.target)?.id ?? null, this.elements, this.mode);
     this.refreshPanel(); this.highlight();
     if (this.fault) this.ui.setFault(this.fault);
@@ -473,7 +629,8 @@ export class HtmlDesigner<T = unknown> {
     const descriptors: CssProperty[] = properties.map((name): CssProperty => {
       const compatible = this.compatible(name); const value = this.displayValue(name, computed);
       const gradientOwned = this.gradientController?.blocksCssProperty(name) ?? false;
-      return { name, label: labels[name] ?? name, value, disabled: this.fault !== null || !compatible || gradientOwned, ...(isGeometryProperty(name) ? { editor: name === 'scaleX' || name === 'scaleY' ? 'number' : 'dimension' } : {}), ...(this.fault ? { diagnostic: this.fault } : !compatible ? { diagnostic: 'Valeurs d’origine différentes. Utilisez des ID individuels pour cette propriété.' } : gradientOwned ? { diagnostic: 'Fond piloté par des pistes de dégradé indépendantes. Utilisez le contrôle Dégradé.' } : (this.elements.length > 1 && !value ? { diagnostic: 'Valeurs d’aperçu différentes. Une cible plus spécifique peut rester prioritaire.' } : {})) };
+      const sharedGeometry = Boolean(this.adapter.preview) && isGeometryProperty(name);
+      return { name, label: labels[name] ?? name, value, disabled: this.fault !== null || !compatible || gradientOwned || sharedGeometry, ...(isGeometryProperty(name) ? { editor: name === 'scaleX' || name === 'scaleY' ? 'number' : 'dimension' } : {}), ...(this.fault ? { diagnostic: this.fault } : !compatible ? { diagnostic: 'Valeurs d’origine différentes. Utilisez des ID individuels pour cette propriété.' } : gradientOwned ? { diagnostic: 'Fond piloté par des pistes de dégradé indépendantes. Utilisez le contrôle Dégradé.' } : sharedGeometry ? { diagnostic: sharedGeometryReason } : (this.elements.length > 1 && !value ? { diagnostic: 'Valeurs d’aperçu différentes. Une cible plus spécifique peut rester prioritaire.' } : {})) };
     });
     this.panel.setProperties(descriptors);
   }
@@ -491,7 +648,7 @@ export class HtmlDesigner<T = unknown> {
   private enterFault(message: string): void {
     if (this.fault !== null) return;
     message = message.trim() ? message : 'État du projet incertain. Rechargez un projet cohérent avant de reprendre.';
-    this.fault = message; this.pendingDocumentChange = null; this.deferredNotifications = [];
+    this.fault = message; this.pendingDocumentChange = null; this.pendingProjectChange = null; this.deferredNotifications = [];
     this.pending = null; this.pendingGeometryTarget = false; this.gesture = null;
     this.cancelConflict(); this.gradientController?.setFault(message); this.ui.hideTargets(); this.ui.setFault(message);
     this.emitter.emit('fault', { message }); this.emitter.emit('diagnostic', { message });
@@ -499,6 +656,9 @@ export class HtmlDesigner<T = unknown> {
   /** Delay success notifications until the command has returned a reliable result. */
   private runMutation(action: () => MutationResult): MutationResult {
     if (this.fault) return this.faultResult();
+    try { const fault = this.adapter.getState().fault; if (fault !== undefined) this.enterFault(fault); }
+    catch { this.enterFault('L’état du projet est inaccessible. Rechargez un projet cohérent avant de reprendre.'); }
+    if (this.fault) { this.render(); return this.faultResult(); }
     this.mutationDepth++;
     let result: MutationResult;
     try { result = action(); }
@@ -521,6 +681,7 @@ export class HtmlDesigner<T = unknown> {
     this.cancelConflict(); this.conflictsUi.destroy();
     this.gesture = null; this.geometryControls?.destroy();
     this.abort.abort(); for (const unsubscribe of this.subscriptions) unsubscribe();
-    this.origin.restore(); this.highlight(); this.panel.destroy(); this.tree.destroy(); this.ui.destroy(); this.emitter.clear();
+    if (!this.adapter.preview) this.origin.restore();
+    this.highlight(); this.panel.destroy(); this.tree.destroy(); this.ui.destroy(); this.emitter.clear();
   }
 }

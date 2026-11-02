@@ -28,7 +28,7 @@ function setup(type: GradientType = 'linear'): {
     const source = element.getAttribute('style');
     const host = createRealGradientHost(editorContainer, scene, type);
     cleanup.push(() => host.dispose());
-    expect(element.getAttribute('style')).toBe(source);
+    expect(host.adapter.preview?.withSource(() => element.getAttribute('style'))).toBe(source);
     const designer = new HtmlDesigner({ scene, propertiesContainer, treeContainer, timeline: host.editor, adapter: () => host.adapter });
     cleanup.push(() => designer.dispose());
     designer.selectTarget('#gradient-box');
@@ -94,9 +94,7 @@ describe('Designer with genuine installed Timeline packages', () => {
         designer.undo();
         expect(current(designer).stops.map(stop => stop.id)).toEqual(originalIds);
         expect(current(designer).stops.find(stop => stop.id === 'reserved')?.present).toBe(false);
-        const before = host.editor.document;
-        expect(designer.addGradientStop('main', { color: { kind: 'color', r: 1, g: 0, b: 0, a: 1 }, opacity: 1, position: 30 }).status).toBe('rejected');
-        expect(host.editor.document).toBe(before);
+        expect(host.adapter.gradients?.read('gradientObject')?.canAddStop).toBe(true);
     });
     it('cancels draft composition without keys and keeps color alpha independent', () => {
         const { host, designer, element } = setup();
@@ -113,21 +111,30 @@ describe('Designer with genuine installed Timeline packages', () => {
         designer.undo();
         expect(Object.keys(tracks(host))).toHaveLength(0);
     });
-    it('rolls back a real multi-write transaction when a backend observer changes its frame', () => {
+    it('refuses terminal backend seeks synchronously while keeping the committed multi-write receipt', () => {
         const { host, designer } = setup('radial');
         host.navigate(50);
         const before = host.editor.document;
         const accepted = vi.fn();
         designer.on('propertychange', accepted);
-        const unsubscribe = host.editor.on('property:changed', event => { if (event.cause === 'execute')
-            host.navigate(20); });
-        expect(designer.editGradient([{ gradientId: 'main', component: 'centerX', value: 35 }, { gradientId: 'main', component: 'centerY', value: 65 }]).status).toBe('rejected');
-        expect(host.editor.document).toBe(before);
-        expect(accepted).not.toHaveBeenCalled();
-        expect(host.editor.canUndo).toBe(false);
+        const refused: unknown[] = [];
+        const unsubscribe = host.editor.on('property:changed', event => { if (event.cause === 'execute') {
+            try { host.navigate(20); } catch (error) { refused.push(error); }
+        } });
+        expect(designer.editGradient([{ gradientId: 'main', component: 'centerX', value: 35 }, { gradientId: 'main', component: 'centerY', value: 65 }]).status).toBe('changed');
+        expect(host.editor.document).not.toBe(before);
+        expect(accepted).toHaveBeenCalledTimes(2);
+        expect(accepted).toHaveBeenCalledWith(expect.objectContaining({ newValue: '35', frame: 50 }));
+        expect(host.editor.canUndo).toBe(true);
+        expect(refused).toHaveLength(2);
+        expect(host.editor.playback.frame).toBe(50);
+        expect(current(designer).centerX).toBe(35);
         unsubscribe();
+        host.navigate(20); expect(current(designer).centerX).toBe(50);
+        designer.undo();
+        expect(host.editor.document).toEqual(before);
     });
-    it('cancels the entire keys-only group when a backend property observer adds an unexpected track', () => {
+    it('refuses a nested backend property mutation synchronously during HA8 terminal notification', () => {
         const { host, designer } = setup('radial');
         const angle = Object.entries(host.stage.animationContext.bindings?.gradientObject ?? {}).find(([, binding]) => binding.kind === 'gradient' && binding.component === 'angle')?.[0];
         if (!angle)
@@ -148,22 +155,19 @@ describe('Designer with genuine installed Timeline packages', () => {
             nested = host.editor.propertyTimelines.set('gradientObject', angle, { kind: 'number', value: 77 }, { frame: 1, initialValue: { kind: 'number', value: 90 } });
         });
         const result = designer.editGradient([{ gradientId: 'main', component: 'centerX', value: 35 }, { gradientId: 'main', component: 'centerY', value: 65 }]);
-        // HA7 permits this backend callback; the bridge must detect and cancel its group.
-        expect(nested).toMatchObject({ status: 'changed' });
-        expect(result).toMatchObject({ status: 'rejected', message: expect.stringContaining('écriture externe') });
-        expect(host.editor.document).toBe(before);
-        expect(Object.keys(tracks(host))).toHaveLength(0);
-        expect(host.editor.canUndo).toBe(false);
+        expect(nested).toMatchObject({ status: 'refused' });
+        expect(result).toMatchObject({ status: 'changed' });
+        expect(Object.keys(tracks(host))).toHaveLength(2);
+        expect(host.editor.canUndo).toBe(true);
         expect(host.editor.canRedo).toBe(false);
         expect(current(designer).angle).toBe(90);
-        expect(current(designer).centerX).toBe(50);
-        expect(current(designer).centerY).toBe(50);
-        expect(accepted).not.toHaveBeenCalled();
+        expect(current(designer).centerX).toBe(35);
+        expect(current(designer).centerY).toBe(65);
+        expect(accepted).toHaveBeenCalledTimes(2);
         expect(originalChange).not.toHaveBeenCalled();
-        expect(own.mock.calls.filter(call => call[0] === 'execute')).toHaveLength(0);
+        expect(own.mock.calls.filter(call => call[0] === 'execute')).toHaveLength(1);
         unsubscribe();
         stopObserving();
-        expect(designer.editGradient([{ gradientId: 'main', component: 'centerX', value: 35 }, { gradientId: 'main', component: 'centerY', value: 65 }]).status).toBe('changed');
         designer.undo();
         expect(host.editor.document).toEqual(before);
     });
@@ -201,18 +205,22 @@ describe('Designer with genuine installed Timeline packages', () => {
         expect(host.adapter.undo().status).toBe('changed');
         expect(Object.keys(tracks(host))).toHaveLength(0);
     });
-    it('returns a committed receipt even when a read-only observer seeks to another frame', () => {
+    it('keeps the receipt frame when an adapter observer seek is refused and allows a later retry', () => {
         const { host, designer } = setup();
         host.navigate(50);
         const property = vi.fn();
         designer.on('propertychange', property);
-        const unsubscribe = host.adapter.onChange(reason => { if (reason === 'execute')
-            host.navigate(20); });
+        const refused: unknown[] = [];
+        const unsubscribe = host.adapter.onChange(reason => { if (reason === 'execute') {
+            try { host.navigate(20); } catch (error) { refused.push(error); }
+        } });
         expect(designer.editGradient([{ gradientId: 'main', component: 'angle', value: 35 }]).status).toBe('changed');
-        expect(host.editor.playback.frame).toBe(20);
-        expect(current(designer).angle).toBe(90);
+        expect(refused).toHaveLength(1);
+        expect(host.editor.playback.frame).toBe(50);
+        expect(current(designer).angle).toBe(35);
         expect(property).toHaveBeenCalledWith(expect.objectContaining({ newValue: '35', frame: 50 }));
         unsubscribe();
+        host.navigate(20); expect(current(designer).angle).toBe(90);
     });
     it('checks crossed-point rendering against the genuine archive capability without replacing its renderer', () => {
         const { host, designer, element } = setup();

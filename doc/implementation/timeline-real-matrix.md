@@ -1,12 +1,106 @@
 <!-- doc/implementation/timeline-real-matrix.md -->
 # Real Timeline verification — Designer consumer matrix
 
-Reference HA-REAL-MATRIX-001/r1, 2026-10-31. This is a consumer evidence record and
+Reference HA-REAL-MATRIX-001/r4, 2026-11-01. This is a consumer evidence record and
 API request; it does not amend HA-TL-001/r2 or claim a delivered shared signature.
 
-## Current installed HA7 reference
+## Current installed HA9B reference — consumer verification ongoing
 
-Active functional commit: `a3b7652534a4532050d8c21d3703f957c50d61d9`, branch
+Functional reference `6d19da1f75af53e902b86164ce4cfb8003cef465` includes HA8 atomic
+transactions, HA9 prepared rendering, HA10 final-candidate conflicts and the
+`HA9-HISTORY-REFUSALS/1` supplement. All three archives were installed together after
+the preceding test run ended. Their hashes, installed public manifests/ESM and all four
+copied contract checksums pass verification; runtime is deduplicated. Previous immutable
+vendor checkpoints are retained.
+
+The two unchanged public backend refusal regressions now pass with the precise reasons
+`Permission undo refusée` and `Permission redo refusée`. Only the fault-accessor test seam
+needed the new additive `resolveHtmlConflict` method delegated to its genuine instance.
+No expected refusal, timeout or retry policy was weakened. Full consumer validation of
+this reference is recorded below as it executes; provider test counts are not our evidence.
+
+Fifteen editable-file journeys and three explicit spatial-unavailability checks passed
+across Chromium/Firefox/WebKit with CI=1, workers=2 and retries=0. These cover native
+download, unsupported-source validation, invalid-file refusal, root reset and the complete
+A/B/open/edit/undo/redo chain with source journal and metadata. All 693 unit/integration
+tests pass, including the 26 native opening cases. See `editable-project.md` for the
+initial browser failures, their fixes and the exact PR record of final full validation.
+
+The broader final-candidate conflict API is installed but the general bridge mapping is
+still separate work. Shared source-relative spatial mapping remains unavailable. These
+packages are local unpublished archives, not an assumption about a registry release.
+
+The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
+
+| Current genuine consumer path | Evidence exercised in this lot | Explicit boundary |
+| --- | --- | --- |
+| Authoring capture | Native keys, retained curve sources/transitions/easings, context, net journal and metadata; no sampling/load/history mutation | Editable envelope only; no playback export implied. |
+| Source reattachment | Trusted host source at its actual Full XPath location, raw null/empty expectations, root attributes and a new animated ID applied from the journal | Host supplies original HTML/CSS and stable resource revision again. |
+| Same-history project opening | Original A nodes/listeners/owner preserved through B and back; old attribute and key commands still undo/redo; B settings/time remain coherent | Private root-layer workshop mapping; unsupported groups/gradient identities refuse before mutation. |
+| Opening compensation | Partial mount, Root adoption and renderer failures restore exact nodes/parents, authoring data, context, journal, owner, policy and redo | Irrecoverable compensation is a persistent fault, never a clean rejection. |
+| Replay resource guards | Mount/render invalidation on undo/redo, active A independent of unavailable B, including no CSS projection | No obsolete UI confirmation reused for replay. |
+| Files and source journal UI | Real downloads, read-only validation, explicit open/undo/redo, source metadata retained, fresh workshop root reset | Demo catalogue contains its three source fixtures only. |
+| General CSS, groups and conflict A | Reusable controls/simulations; HA10 public API is present in installed packages | Full genuine bridge mapping remains next work. |
+| Shared spatial projection and outputs | Existing simulations and explicit genuine unavailable states | No real source-relative mapping or faithful JSON/JS/CSS playback export claim. |
+
+Native project-opening tests use the installed packages and public fault seams. The
+separate `project-rehydration` tests use a simulated host and prove only the reusable
+participant. Final ordinary gate results and exact CI head are reported in the editable
+project PR; the early targeted browser counts above are not a full-product completion.
+
+## Previous installed HA9 reference — historical evidence
+
+Functional reference `c340203e50ac84f5fb58e8f9e60dc83f3c2bdf56`, contracts
+`HA8-TRANSACTIONS/1` and `HA9-HOST-RENDER/1`. The three archives are dev-only local
+dependencies installed together. `check:timeline-artifacts` verifies their size/hash,
+installed public manifests/ESM and copied contract checksums. Runtime is deduplicated.
+
+The unchanged backend observer regression now passes: execute/undo/redo through the
+Designer and directly through Timeline expose the committed DOM, context and history.
+The early-created shared preview owner replaces notification-time Designer rendering.
+Owner compensation, initialization, seek, destruction retry, native loads and the exact
+four-button group/ID reference have targeted genuine tests. Two new RED/GREEN tests cover
+native color/text reading and cleanup after bridge bootstrap failure.
+
+Two genuine tests still fail on the public reason of refused backend undo/redo. HA9
+discards `command:refused` while cancelling its atomic notification batch; the bridge
+therefore has only its generic French refusal. The precise expected reasons remain in
+the tests. This is not a full-green integration checkpoint. HA10 archives have been
+received separately but are not active here and do not fix those two cases.
+
+General CSS/target creation, conflict A and source-relative r3 spatial mapping remain
+separate work. Shared spatial fields/handles are explicitly disabled meanwhile.
+Project codec/capture/opening verification is recorded independently in
+`editable-project.md`; it is not implied by an owner-render test.
+
+The previous matrix is preserved in `timeline-real-matrix-r2.md`.
+
+## Previous installed HA8 reference — historical evidence
+
+Functional reference `f6de3c592c8c90c35285332f704ef68dfcce0b41`,
+contract `HA8-TRANSACTIONS/1`. The three immutable archives are installed together;
+their sizes/hashes and exact installed manifests/ESM match. Runtime is deduplicated.
+The public factory/transaction/result declarations have been read from those packages.
+See `ha8-transactions.md` for provenance, RED/GREEN and the confirmed remaining
+backend-notification/Designer-render gap. That guarantee is not complete.
+
+| Current consumer path | Executed evidence | Remaining limit |
+| --- | --- | --- |
+| New gradient point + bindings + four keys | Genuine integration tests and three-browser journey, shared undo/redo with stable IDs and false initial presence | Backend observers still need prepared Designer rendering before notification. |
+| First opacity edit on the witness | Genuine object/target/binding/base/key transaction, hold/direct seek and undo removing object/context | This private mapping covers opacity on the fixture witness; general CSS is a separate extension. |
+| Original ID/class effects | Genuine three-browser edits, Full XPath journal and shared undo/redo; 14 simulation tests for exact participant compensation | Animated retargeting remains refused. No source save/reload claim. |
+| Fault and compensation | Genuine refused partial apply preserves redo; failed rollback is faulted and blocks mutation/history | Final reviewed conformance and render participant compensation remain pending. |
+| Element geometry/conflicts/output | Existing simulations and explicit genuine refusals | Relative r3/HA4 and conflict-A support are being coordinated; project round-trip/exports remain later work. |
+
+517 independent tests passed with the known rendering RED explicitly filtered out;
+30 genuine browser journeys passed. This is not a full-green HA8 integration result.
+
+The original HA7 matrix is archived in `timeline-real-matrix-r1.md`. Its tested subset
+and historical boundaries below are retained as history, not assumed HA8 passes.
+
+## Previous HA7 reference and completed checkpoint evidence
+
+Previous functional commit: `a3b7652534a4532050d8c21d3703f957c50d61d9`, branch
 `v2/HA7-gradient-stop-order`, PR128 open and unmerged. Documentary head:
 `f88738c3b9ade14850b8f9ce91dfda6a336eec64`. All three new archives were verified
 and installed together from a new immutable vendor path; HA6 was not overwritten.

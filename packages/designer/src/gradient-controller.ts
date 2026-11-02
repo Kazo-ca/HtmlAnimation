@@ -10,6 +10,8 @@ import { resolveTarget } from './targets.js';
 
 interface ControllerActions {
   refresh(): void;
+  /** Explicit local draft writes; ordinary refreshes remain observations. */
+  draft?(preview: { readonly objectId: string; readonly declarations: Readonly<Record<string, string>> } | null): MutationResult;
   report(message: string): void;
   fault(message: string): void;
   mutate(action: () => MutationResult): MutationResult;
@@ -18,6 +20,15 @@ interface ControllerActions {
 }
 interface Ticket { readonly request: GradientRequest; readonly current: () => boolean; readonly snapshot: GradientSnapshot }
 interface Draft { readonly ticket: Ticket; readonly source: 'panel' | 'stage'; readonly changes: readonly GradientEdit[]; readonly projection: Extract<GradientComposition, {status: 'composed'}> | null }
+interface GradientSession {
+  readonly contexts: readonly (readonly [string, readonly GradientDefinition[]])[];
+  readonly snapshot: GradientSnapshot | null;
+  readonly objectId: string | null;
+  readonly elements: readonly HTMLElement[];
+  readonly mode: 'select' | 'test';
+  readonly epoch: number;
+  readonly draft: Draft | null;
+}
 function copy(snapshot: GradientSnapshot): GradientSnapshot { return { ...snapshot, definitions: cloneGradientDefinitions(snapshot.definitions), gradients: cloneGradientDefinitions(snapshot.gradients), tracks: snapshot.tracks.map(track => ({ ...track })) }; }
 function text(value: unknown): string { return typeof value === 'string' ? value : JSON.stringify(value) ?? ''; }
 
@@ -58,6 +69,29 @@ export class GradientController {
       if (JSON.stringify(previous) !== JSON.stringify(definitions)) this.actions.context({ objectId: id, definitions: cloneGradientDefinitions(definitions), direction: reason as 'execute' | 'undo' | 'redo' });
     }
   }
+  /** Package-internal transaction state. Capturing/restoring never renders or writes CSS. */
+  public captureSession(): GradientSession {
+    return { contexts: [...this.contexts].map(([id, definitions]) => [id, cloneGradientDefinitions(definitions)] as const), snapshot: this.snapshot ? copy(this.snapshot) : null, objectId: this.objectId, elements: [...this.elements], mode: this.mode, epoch: this.epoch, draft: this.draft };
+  }
+  public restoreSession(session: GradientSession): void {
+    this.contexts.clear();
+    for (const [id, definitions] of session.contexts) this.contexts.set(id, cloneGradientDefinitions(definitions));
+    this.snapshot = session.snapshot ? copy(session.snapshot) : null; this.objectId = session.objectId;
+    this.elements = [...session.elements]; this.mode = session.mode; this.epoch = session.epoch;
+    this.draft = this.fault ? null : session.draft;
+  }
+  public resetForProject(): void {
+    this.epoch++; this.contexts.clear(); this.snapshot = null; this.objectId = null;
+    this.elements = []; this.draft = null;
+  }
+  public resetContexts(): void {
+    const next = new Map<string, readonly GradientDefinition[]>();
+    for (const object of this.adapter.getState().objects) {
+      const state = this.adapter.gradients?.read(object.id);
+      if (state) next.set(object.id, cloneGradientDefinitions(state.definitions));
+    }
+    this.contexts.clear(); for (const [id, definitions] of next) this.contexts.set(id, definitions);
+  }
   public refresh(objectId: string | null, elements: readonly HTMLElement[], mode: 'select' | 'test'): void {
     if (this.disposed) return;
     this.objectId = objectId; this.elements = [...elements]; this.mode = mode;
@@ -90,7 +124,7 @@ export class GradientController {
     let result: GradientMutationResult;
     try { result = this.adapter.gradients.execute(request, ticket.current); }
     catch { result = { status: 'faulted', message: 'La modification du dégradé a échoué dans un état incertain. Rechargez un projet cohérent avant de reprendre.' }; }
-    this.draft = null;
+    this.cancel(false, result.status !== 'faulted');
     if (result.status === 'faulted') { this.setFault(result.message); this.actions.fault(result.message); }
     if (this.fault) { this.actions.refresh(); return { status: 'faulted', message: this.fault }; }
     if (result.status === 'changed') {
@@ -124,11 +158,23 @@ export class GradientController {
     catch { result = { status: 'rejected', message: 'Aperçu de dégradé indisponible.' }; }
     if (this.draft !== draft || !draft.ticket.current()) { this.cancel(); return this.reject('Le contexte a changé pendant la composition du dégradé.'); }
     if (result.status === 'rejected') { this.cancel(); return this.reject(result.message); }
-    this.draft = { ...draft, changes, projection: result }; this.actions.refresh(); return { status: 'changed' };
+    this.draft = { ...draft, changes, projection: result };
+    const applied = this.actions.draft?.(this.getPreview());
+    if (applied?.status === 'faulted') { this.setFault(applied.message); this.actions.fault(applied.message); this.actions.refresh(); return applied; }
+    if (applied?.status === 'rejected') { this.draft = draft; this.actions.refresh(); return this.reject(applied.message); }
+    this.actions.refresh(); return { status: 'changed' };
   }
   public commit(): MutationResult { if (this.fault) return { status: 'faulted', message: this.fault }; const draft = this.draft; return draft ? this.execute({ kind: 'edit', changes: draft.changes }, draft.ticket) : { status: 'unchanged' }; }
-  public setFault(message: string): void { this.fault ??= message.trim() ? message : 'État du projet incertain. Rechargez un projet cohérent avant de reprendre.'; this.cancel(false); }
-  public cancel(notify = true): void { const existed = this.draft !== null; this.epoch++; this.draft = null; if (existed && notify && !this.disposed) this.actions.refresh(); }
+  public setFault(message: string): void { this.fault ??= message.trim() ? message : 'État du projet incertain. Rechargez un projet cohérent avant de reprendre.'; this.cancel(false, false); }
+  public cancel(notify = true, restorePreview = true): void {
+    const previous = this.draft; this.epoch++; this.draft = null;
+    if (previous && restorePreview && !this.fault) {
+      const restored = this.actions.draft?.(null);
+      if (restored?.status === 'faulted') { this.setFault(restored.message); this.actions.fault(restored.message); }
+      else if (restored?.status === 'rejected') { this.draft = previous; this.actions.report(restored.message); }
+    }
+    if (previous && notify && !this.disposed) this.actions.refresh();
+  }
   private stageProblem(element: HTMLElement | null): string | null {
     if (!element || !gradientElementArea(element)) return 'Poignées indisponibles : la zone de fond n’est pas mesurable ou son origine est incompatible. Les champs restent disponibles.';
     for (let current: HTMLElement | null = element; current; current = current.parentElement) {
@@ -147,5 +193,5 @@ export class GradientController {
     const plane = element !== null && this.stageProblem(element) === null;
     return { element, gradient, stopId: selection?.stopId ?? null, visible: this.fault === null && this.mode === 'select' && Boolean(gradient), interactive: this.fault === null && plane && Boolean(this.snapshot?.editable), active: this.draft !== null };
   }
-  public dispose(): void { if (this.disposed) return; this.disposed = true; this.draft = null; this.epoch++; this.controls.destroy(); this.editor.destroy(); this.root.remove(); }
+  public dispose(): void { if (this.disposed) return; this.cancel(false, !this.fault); this.disposed = true; this.draft = null; this.controls.destroy(); this.editor.destroy(); this.root.remove(); }
 }

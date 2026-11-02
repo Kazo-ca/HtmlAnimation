@@ -1,8 +1,8 @@
 <!-- doc/implementation/adapter-contract.md -->
-# HA-ADAPTER-001 — local consumer boundary, revision 4
+# HA-ADAPTER-001 — local consumer boundary, revision 6
 
 Date: 2026-10-31. Consumes HA-TL-001/r2 and HA-DESIGN-001/r1 unchanged.
-Status: **local proposal; simulations plus a limited private HA7 bridge**. This document
+Status: **local proposal; simulations plus an in-progress private HA9 bridge**. This document
 does not amend a shared Timeline guarantee or claim a published Timeline signature.
 Changes to this boundary require a revision and migration notes. Changes to the shared
 contract must separately follow the revision/copy process in `doc/integration/README.md`.
@@ -10,7 +10,8 @@ contract must separately follow the revision/copy process in `doc/integration/RE
 The host gives `HtmlDesigner` its original Timeline instance and an adapter factory.
 Types live in `packages/designer/src/timeline-adapter.ts`. The revision 1 document
 is archived as `adapter-contract-r1.md`; revisions 2 and 3 are in
-`adapter-contract-r2.md` and `adapter-contract-r3.md`.
+`adapter-contract-r2.md`, `adapter-contract-r3.md`, `adapter-contract-r4.md` and
+`adapter-contract-r5.md`.
 Existing r1/r2 adapters remain accepted;
 the declared shared revision is a consumed document reference, not a conformity claim.
 
@@ -162,12 +163,12 @@ are refused when structured channels own that background, pending explicit confl
 resolution. Single-element handles share selected point identity with the panel;
 unsupported origin/crop/transform/attachment contexts keep fields and explain the limit.
 
-The private `integration/timeline-real.ts` bridge uses pinned public HA7 packages.
-It verifies a limited keys-only mapping, genuine runtime hold and pre-registered point
-presence. Structural add, arbitrary CSS, new objects, r3 spatial mapping and HTML effects
-are explicitly refused. Backend notifications are intermediate in HA7; coalescing this
-adapter's own listeners does not make other backend observers atomic. See
-`timeline-real-matrix.md` for executed evidence and pending HA8 public guarantees.
+The r4 checkpoint's private bridge used pinned HA7 packages and refused structural/host
+effects. The current bridge is moving to the verified public HA8 inspection stage and
+atomic transaction surface. Its consumer verification, supported subset and remaining
+render-notification gap are explicit in `ha8-transactions.md` and
+`timeline-real-matrix.md`. Installing the provider's implementation does not certify
+the adapter or complete the product's remaining mappings.
 
 ## Persistent compensation faults (r4)
 
@@ -181,10 +182,47 @@ recovered host; omitting `fault` from a later snapshot does not silently rearm e
 
 Success notifications are deferred until the command returns an accepted result.
 An uncertain ID/class effect clears pending success events without claiming the source
-was restored. The visible journal is marked uncertain. HA8 mapping must additionally
-capture and restore exact private journal/pending/first-execution/target state during
-compensation; inverse user actions are not an exact rollback participant. This local
-fault path does not invent a public HA8 signature or certify a decorated stage participant.
+was restored. The visible journal is marked uncertain. This local fault path does not
+invent a public HA8 signature or certify a decorated stage participant.
+
+## Prepared host participation (r5)
+
+`ReversibleEffect.prepare(direction)` optionally returns `PreparedEffect` with
+`changed`, `apply()` and `rollback()`. Preparation is pure and captures the exact current
+participant state. Rollback compensates even a partially applied action without
+executing a new user intent. The existing `redo/undo` remain for older adapters;
+the real bridge explicitly refuses effects without prepared support and maps the
+prepared shape to the installed public `IHostHistoryEffect`.
+
+The Designer's ID/class participant captures raw attribute presence/value, net journal,
+pending document notification, deferred notifications, target and legacy first-execution
+flag. It restores all captured values on compensation. Preparation revalidates source
+availability, expected raw value and ID uniqueness; it does not overwrite an external
+source change. Undo/redo use the actual direction, original XPath and one shared backend
+history. Failed preparation preserves the earlier redo stack. No second history or
+`load(document)` replacement is introduced.
+
+## Prepared shared preview ownership (r6)
+
+Optional `TimelineAdapter.preview` supplies a `DomPreviewOwner` constructed over the
+same scene before the native Editor is initialized. The owner captures source CSS and
+original XPath before any evaluated preview. The genuine HA9 `hostRenderer` prepares
+and applies the authoritative per-element projection inside Timeline's atomic boundary.
+The Designer observes that committed projection; synchronous backend observers therefore
+see the committed DOM without relying on a later Designer callback to render it.
+
+`prepare`, `prepareDraft` and `prepareRestore` capture exact compensation state and
+return the r5 prepared-effect shape. `withSource` temporarily suspends owned declarations
+for trusted synchronous read-only source inspection, then reinstates the exact preview.
+Element identity is retained; declaration containers are detached. Explicit gesture drafts
+share this owner and do not create keys, journal entries or accepted-edit events.
+Disposing the Designer removes its local draft; destroying the native host restores source.
+
+An adapter without `preview` retains the earlier Designer-owned projection. The optional
+owner imports no Timeline implementation. Shared-owner r3 spatial controls are explicitly
+unavailable until their source-relative mapping is delivered and verified; they are not
+silently projected as native absolute properties. This revision does not certify project
+opening, all native CSS/group mappings or full Timeline conformity.
 
 ## Designer observations and document changes
 

@@ -45,9 +45,10 @@ function mount(reference: boolean, geometry: 'none' | 'plain' | 'expression' | '
   designer.on('resolutionchange', change => { log.textContent = `Résolutions du projet : ${change.resolutions.length} · ${change.direction === 'undo' ? 'annulation' : change.direction === 'redo' ? 'rétablissement' : 'enregistrement'}`; });
   designer.on('gradientchange', change => { log.textContent = `Structure de dégradé du projet · ${change.direction === 'undo' ? 'annulation' : change.direction === 'redo' ? 'rétablissement' : 'enregistrement'} · identités conservées`; });
   designer.on('diagnostic', event => { log.textContent = event.message; });
+  designer.on('fault', event => { undo.disabled = true; redo.disabled = true; log.textContent = event.message; });
   designer.on('selectionchange', event => { log.textContent = `${event.elements.length} élément(s) sélectionné(s)${event.objectId ? ' · objet temporel associé' : ' · inspection seule'}`; });
   const update = (): void => {
-    const state = timeline.getState(); undo.disabled = !state.canUndo; redo.disabled = !state.canRedo; frame.value = String(state.frame); keyCount.textContent = `${timeline.getKeys().length} clés · simulation`;
+    const state = timeline.getState(); undo.disabled = designer.getFault() !== null || !state.canUndo; redo.disabled = designer.getFault() !== null || !state.canRedo; frame.value = String(state.frame); keyCount.textContent = `${timeline.getKeys().length} clés · simulation`;
     const tracks = required('#gradient-tracks'); tracks.hidden = !gradientTimeline; tracks.replaceChildren();
     if (gradientTimeline) {
       const heading = document.createElement('h3'); heading.textContent = 'Dégradé · pistes enregistrées'; const list = document.createElement('ul');

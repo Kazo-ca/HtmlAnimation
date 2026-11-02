@@ -9,6 +9,18 @@ const require = createRequire(import.meta.url);
 const names = ['runtime', 'editor', 'export-css'];
 if (!/^[a-f0-9]{40}$/.test(manifest.reference) || manifest.packages.length !== 3) throw new Error('Invalid Timeline provenance manifest.');
 const rootPackage = JSON.parse(await readFile('package.json', 'utf8'));
+const contracts = [
+  ['transactionContract', 'contractSha256', 'doc/integration/timeline-ha8-api.md'],
+  ['hostRenderContract', 'hostRenderContractSha256', 'doc/integration/timeline-ha9-host-render-api.md'],
+  ['conflictContract', 'conflictContractSha256', 'doc/integration/timeline-ha10-conflict-api.md'],
+  ['historyRefusalContract', 'historyRefusalContractSha256', 'doc/integration/timeline-ha9b-history-refusals-api.md'],
+];
+for (const [revision, checksum, path] of contracts) {
+  if (manifest[revision] === undefined) continue;
+  const bytes = await readFile(path);
+  if (!/^[A-F0-9]{64}$/.test(manifest[checksum] ?? '') || createHash('sha256').update(bytes).digest('hex').toUpperCase() !== manifest[checksum]) throw new Error(`Timeline contract checksum mismatch: ${manifest[revision]}`);
+  process.stdout.write(`Verified contract ${manifest[revision]}.\n`);
+}
 for (const suffix of names) {
   const name = `@kazo-ca/timeline-${suffix}`; const archive = `kazo-ca-timeline-${suffix}-1.0.0.tgz`;
   const item = manifest.packages.find(candidate => candidate.name === name && candidate.archive === archive);
