@@ -17,6 +17,7 @@ for (const behavior of ['auto', 'smooth']) test(`a spatial preview preserves a $
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   const element = page.locator('#scene-host #geometry-box'); const handle = page.locator('[data-geometry-handle="dimensions"]');
   const before = await element.boundingBox(); const rect = await handle.boundingBox();
+  const beforeViewportScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
   if (!before || !rect) throw new Error('The scrolled scene must expose its geometry handle.');
   const start = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   expect(Math.abs(start.x - before.x)).toBeLessThan(0.5); expect(Math.abs(start.y - before.y - before.height)).toBeLessThan(0.5);
@@ -35,5 +36,9 @@ for (const behavior of ['auto', 'smooth']) test(`a spatial preview preserves a $
   await page.mouse.up(); expect(await board.evaluate(element => element.scrollTop)).toBe(80);
   await page.locator('#undo').click(); expect(await board.evaluate(element => element.scrollTop)).toBe(80);
   const restored = await element.boundingBox(); if (!restored) throw new Error('Undo must restore the original preview.');
-  for (const property of ['x', 'y', 'width', 'height'] as const) expect(Math.abs(restored[property] - before[property])).toBeLessThan(0.5);
+  const restoredViewportScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
+  // Clicking a partly clipped header action may natively scroll the viewport before
+  // its command runs. Compare document positions; preview and board scroll remain strict above.
+  for (const property of ['x', 'y'] as const) expect(Math.abs(restored[property] + restoredViewportScroll[property] - before[property] - beforeViewportScroll[property])).toBeLessThan(0.5);
+  for (const property of ['width', 'height'] as const) expect(Math.abs(restored[property] - before[property])).toBeLessThan(0.5);
 });

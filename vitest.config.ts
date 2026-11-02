@@ -7,6 +7,8 @@ export default defineConfig({
     '@kazo-ca/hierarchical-dom-tree': fileURLToPath(new URL('./packages/dom-tree/src/index.ts', import.meta.url)),
   } },
   test: {
+    // Bound JSDOM/coverage memory and CPU without relaxing test deadlines.
+    maxWorkers: 2,
     environment: 'jsdom', include: ['tests/**/*.test.ts'],
     coverage: { provider: 'v8', include: ['packages/*/src/**/*.ts'], reporter: ['text', 'html', 'json-summary'], thresholds: { lines: 80, functions: 80, statements: 80, branches: 80 } },
   },

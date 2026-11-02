@@ -3,6 +3,7 @@ import { build } from 'vite';
 import { execFileSync } from 'node:child_process';
 import { copyFile, readFile, readdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+execFileSync(process.execPath, ['scripts/generate-css-catalog.mjs', '--check'], { stdio: 'inherit' });
 for (const name of ['css-properties', 'dom-tree', 'designer']) {
   const root = resolve('packages', name);
   await build({ configFile: false, root, build: { lib: { entry: resolve(root, 'src/index.ts'), formats: ['es'], fileName: 'index', cssFileName: 'style' }, rollupOptions: { external: ['@kazo-ca/css-properties', '@kazo-ca/hierarchical-dom-tree'] }, outDir: 'dist', emptyOutDir: true } });

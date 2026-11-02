@@ -1,9 +1,14 @@
 // packages/designer/src/timeline-adapter.ts
-/** Local consumer boundary HA-ADAPTER-001/r2; not a published Timeline API. */
-export type MutationResult = { readonly status: 'changed' | 'unchanged' } | { readonly status: 'rejected'; readonly message: string };
+import type { ConflictCapability } from './conflict-types.js';
+import type { GradientCapability } from './gradient-types.js';
+import type { DomPreviewOwner } from './dom-preview.js';
+/** Local consumer boundary HA-ADAPTER-001/r6; not a published Timeline API. */
+export type MutationResult = { readonly status: 'changed' | 'unchanged' } | { readonly status: 'rejected' | 'faulted'; readonly message: string };
 export interface TimelineObject { readonly id: string; readonly selector: string }
 export type EvaluatedValues = Readonly<Record<string, Readonly<Record<string, string>>>>;
 export interface TimelineState {
+  /** Uncertain compensation: this Designer instance must not resume mutations. */
+  readonly fault?: string;
   readonly frame: number;
   readonly duration: number;
   readonly objects: readonly TimelineObject[];
@@ -19,11 +24,27 @@ export interface PropertyWrite {
   readonly value: string;
   readonly frame: number;
 }
-export interface ReversibleEffect { redo(): void; undo(): void }
-export type TimelineReason = 'frame' | 'selection' | 'execute' | 'undo' | 'redo';
+export type HistoryDirection = 'execute' | 'undo' | 'redo';
+export interface PreparedEffect {
+  readonly changed: boolean;
+  apply(): void;
+  /** Restore the exact capture, including a partially applied effect. */
+  rollback(): void;
+}
+export interface ReversibleEffect {
+  redo(): void;
+  undo(): void;
+  /** Pure capture for an atomic host participant; old adapters may omit support. */
+  prepare?(direction: HistoryDirection): PreparedEffect;
+}
+export type TimelineReason = 'frame' | 'selection' | 'execute' | 'undo' | 'redo' | 'preview' | 'cancel';
 export interface TimelineAdapter {
   readonly kind: 'simulation' | 'real';
   readonly contractRevision: 'HA-TL-001/r1' | 'HA-TL-001/r2';
+  readonly conflicts?: ConflictCapability;
+  readonly gradients?: GradientCapability;
+  /** Shared writer created before Editor; committed rendering precedes every host observation. */
+  readonly preview?: DomPreviewOwner;
   getState(): TimelineState;
   execute(label: string, writes: readonly PropertyWrite[], effect?: ReversibleEffect): MutationResult;
   undo(): MutationResult;
