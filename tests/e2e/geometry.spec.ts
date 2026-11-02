@@ -136,8 +136,13 @@ for (const scenario of [
 test('a singular dimensions gesture explains its refusal without adding simulated keys', async ({ page }) => {
   const element = await openGeometry(page); const rotation = page.locator('#properties input[data-property="rotation"]'); await rotation.fill('180deg'); await rotation.press('Tab');
   const before = await corners(element); const keys = await page.locator('#key-count').textContent();
+  const transform = await element.evaluate(element => getComputedStyle(element).transform);
   await page.getByRole('button', { name: 'Dimensions', exact: true }).click(); await drag(page, 'dimensions', { x: 20, y: 10 });
-  await expect(page.locator('.geometry-status')).toContainText('origine'); await expect(page.locator('#key-count')).toHaveText(keys ?? ''); expect(await corners(element)).toEqual(before);
+  await expect(page.locator('.geometry-status')).toContainText('origine'); await expect(page.locator('#key-count')).toHaveText(keys ?? '');
+  expect(await element.evaluate(element => getComputedStyle(element).transform)).toBe(transform);
+  const after = await corners(element);
+  // Scroll changes alter floating-point addition in document coordinates (Firefox).
+  for (const [index, point] of after.entries()) for (const axis of ['x', 'y'] as const) expect(Math.abs(point[axis] - (before[index]?.[axis] ?? Number.NaN))).toBeLessThan(0.0001);
 });
 
 test('controlled percentage translations remain relative while the dimensions corner follows the pointer', async ({ page }) => {

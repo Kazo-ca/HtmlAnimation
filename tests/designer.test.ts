@@ -422,7 +422,7 @@ describe('HtmlDesigner integration with a scripted simulation, not a real Timeli
     expect(buttons[0].style.color).toBe('red');
     expect(buttons[1].style.opacity).toBe('0.5');
     designer.selectElements([buttons[1]]);
-    expect(timeline.getState().selectedObjectId).toBe('group');
+    expect(timeline.getState().selectedObjectId).toBeNull();
   });
 
   it('lets Test mode deliver normal content clicks and restores selection interception afterward', () => {

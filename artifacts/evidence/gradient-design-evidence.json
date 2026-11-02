@@ -1,0 +1,22 @@
+{
+  "contract": "../../doc/implementation/gradient-tracks.md — HA-DESIGN-GRADIENT-001/r1; controlled structured gradients, independent channels, stable IDs, shared undo and distinct genuine/simulated workshops.",
+  "targetViewports": ["320x960", "768x960", "1024x960", "1440x960"],
+  "accessibility": { "status": "pass", "evidence": "The focused 36-journey gradient browser suite passed across Chromium, Firefox and WebKit, including keyboard point selection, labelled controls, Escape, reduced motion and axe WCAG 2 A/AA/2.1 AA at 1440px. Parent inspected all four actual mock captures and both genuine captures. A later full concurrent run had two accessibility timeouts; final isolated full validation is recorded separately and is not inferred from the targeted pass." },
+  "responsive": { "status": "pass", "evidence": "Actual captures at 320/768/1024/1440 show a stacked narrow inspector and the existing two/three-column wider workbench. Inputs and labels fit; the selected point has visible focus. Browser checks assert no horizontal document overflow at all four widths. Genuine workshop also fits 320/1440 without overflow." },
+  "contentStates": {
+    "loading": { "status": "not-applicable", "reason": "Host definitions and local recorded/package reads are synchronous. No network loading or account state is introduced by the reusable control." },
+    "empty": { "status": "pass", "evidence": "The initial reference scene has no structured gradient capability or editor. A supplied empty model explains that the host must provide its structure; model/control tests cover it without creating tracks." },
+    "error": { "status": "pass", "evidence": "The genuine spatial-r3 edit is visibly refused with a diagnostic and no key in all three browsers. Stale contexts and uncertain command faults have separate simulation tests: fault stays visible and blocks editing/history, while a known rejection remains recoverable. Fault injection is not an HA8 conformance result." },
+    "partial": { "status": "pass", "evidence": "The genuine workshop visibly disables structural add while existing point fields stay usable; its explanatory text and disabled button are present in the 1440px capture. Unsupported geometry contexts keep panel fields and explain unavailable scene handles." },
+    "success": { "status": "pass", "evidence": "Browser journeys edit independent point/geometry channels, cancel drafts and undo/redo compound gestures. Simulation alone demonstrates atomic structural addition/removal. Genuine packages separately verify component history, runtime hold and pre-registered presence, without original document-change notifications." },
+    "permission": { "status": "not-applicable", "reason": "This local host-owned HTML authoring workflow introduces no permission request, deployment or public package publication." }
+  },
+  "renderedEvidence": [
+    { "viewport": "320x960", "artifact": "gradient-editor-320.png", "observation": "The narrow scrolled inspector keeps the bar, selected point, type, angle, color, opacity, position and ranges readable. The footer follows the constrained inspector; remaining actions are reached through its normal scroll." },
+    { "viewport": "768x960", "artifact": "gradient-editor-768.png", "observation": "The tablet layout shows subject and point editor side by side, separate geometry/point fields, selected marker and stacked add/remove actions." },
+    { "viewport": "1024x960", "artifact": "gradient-editor-1024.png", "observation": "Structure, scene and inspector fit three columns. Long class labels wrap; gradient handles and fields remain visible without horizontal overflow." },
+    { "viewport": "1440x960", "artifact": "gradient-editor-1440.png", "observation": "Desktop hierarchy shows the actual selected DOM node, host scene and controlled editor. The bar selection has an explicit outline and scene handles are spaced apart." },
+    { "viewport": "320x960", "artifact": "timeline-real-320.png", "observation": "The genuine workshop displays its explicit structural limitation above the same editable fields. The installed Timeline occupies a separate scrolling section below." },
+    { "viewport": "1440x960", "artifact": "timeline-real-1440.png", "observation": "The genuine scene, selected stable point, enabled component fields and disabled structural action are visible together with the installed Timeline. The reserved point is absent and does not renumber structural IDs." }
+  ]
+}

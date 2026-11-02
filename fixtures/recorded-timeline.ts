@@ -9,7 +9,11 @@ export interface RecordedTimeline extends TimelineAdapter {
   getKeys(): readonly PropertyWrite[];
   readonly listenerCount: number;
 }
-export interface RecordedOptions { readonly reference?: boolean }
+export interface RecordedOptions {
+  readonly reference?: boolean;
+  readonly initialKeys?: readonly PropertyWrite[];
+  readonly samples?: Readonly<Record<number, EvaluatedValues>>;
+}
 
 export function createRecordedTimeline(options: RecordedOptions = {}): RecordedTimeline {
   let frame = 1;
@@ -20,15 +24,15 @@ export function createRecordedTimeline(options: RecordedOptions = {}): RecordedT
       { objectId: 'group', selector: '.button', property: 'opacity', value: '0.5', frame: 1 },
       { objectId: 'specific', selector: '#button-2', property: 'opacity', value: '0.8', frame: 50 },
     ],
-  } : { objects: [], keys: [] };
+  } : { objects: [...new Map((options.initialKeys ?? []).map(key => [key.objectId, { id: key.objectId, selector: key.selector }])).values()], keys: (options.initialKeys ?? []).map(key => ({ ...key })) };
   const undoStack: Entry[] = [];
   const redoStack: Entry[] = [];
   const listeners = new Set<(reason: TimelineReason) => void>();
   const emit = (reason: TimelineReason): void => { for (const listener of listeners) listener(reason); };
   const recordedFrames = new Set([1, 20, 49, 50, 75, 100]);
   const getValues = (): EvaluatedValues => {
-    const values: Record<string, Record<string, string>> = options.reference && recordedFrames.has(frame)
-      ? { group: { opacity: '0.5' }, specific: { opacity: '0.8' } } : {};
+    const sample = options.samples?.[frame] ?? (options.reference && recordedFrames.has(frame) ? { group: { opacity: '0.5' }, specific: { opacity: '0.8' } } : {});
+    const values: Record<string, Record<string, string>> = Object.fromEntries(Object.entries(sample).map(([id, properties]) => [id, { ...properties }]));
     // Edits affect ONLY the exact edited frame in this deliberately limited fake.
     for (const key of snapshot.keys.filter(key => key.frame === frame)) {
       values[key.objectId] = { ...values[key.objectId], [key.property]: key.value };

@@ -17,6 +17,7 @@ async function openFreshScene(page: Page): Promise<void> {
 
 test('recorded case 59 preserves group and ID values on direct frame navigation without new keys', async ({ page }) => {
   await openDemo(page);
+  await page.getByRole('button', { name: 'Groupe .button', exact: true }).click();
   const opacity = page.locator('#properties input[data-property="opacity"]');
   const margin = page.locator('#properties input[data-property="margin-top"]');
   await expect(margin).toBeDisabled();
@@ -151,6 +152,7 @@ test('tree keyboard selection synchronizes the inspector and restores manual anc
 
 test('recorded demo remains accessible with an incompatible group property', async ({ page }) => {
   await openDemo(page);
+  await page.getByRole('button', { name: 'Groupe .button', exact: true }).click();
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(results.violations).toEqual([]);
 });

@@ -21,7 +21,8 @@ for (const folder of ['css-properties', 'dom-tree', 'designer']) {
 await writeFile(resolve(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
 process.stdout.write(npm(['install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--cache', resolve('.npm-cache'), ...tarballs], consumer));
 await writeFile(resolve(consumer, 'main.ts'), `// artifacts/consumer/main.ts
-import { CssPropertiesPanel } from '@kazo-ca/css-properties';
+import { CssPropertiesPanel, GradientEditor } from '@kazo-ca/css-properties';
+import type { GradientDefinition } from '@kazo-ca/css-properties';
 import { HierarchicalDomTree } from '@kazo-ca/hierarchical-dom-tree';
 import { HtmlDesigner } from '@kazo-ca/html-designer';
 import type { TimelineAdapter } from '@kazo-ca/html-designer';
@@ -32,10 +33,14 @@ declare const adapter: TimelineAdapter;
 const scene = document.createElement('div');
 const panel = new CssPropertiesPanel(document.createElement('div'));
 panel.setProperties([{name:'opacity',value:'1'}]);
+const gradients: readonly GradientDefinition[] = [];
+const gradient = new GradientEditor(document.createElement('div'), {onChange: intent => { void intent; }});
+gradient.setGradients(gradients); gradient.setSelection('', null);
 const tree = new HierarchicalDomTree(document.createElement('div'),{root:scene});
 const designer = new HtmlDesigner({scene, propertiesContainer:document.createElement('div'), treeContainer:document.createElement('div'), timeline:adapter,adapter:instance=>instance});
 document.body.append(scene);
-designer.dispose(); tree.destroy(); panel.destroy();
+designer.getFault(); designer.getGradientState();
+designer.dispose(); gradient.destroy(); tree.destroy(); panel.destroy();
 `);
 await writeFile(resolve(consumer, 'index.html'), '<!-- artifacts/consumer/index.html --><html><head></head><body><script type="module" src="./main.ts"></script></body></html>');
 await writeFile(resolve(consumer, 'styles.d.ts'), "// artifacts/consumer/styles.d.ts\ndeclare module '*.css';\n");

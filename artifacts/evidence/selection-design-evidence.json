@@ -1,0 +1,20 @@
+{
+  "contract": "../../doc/implementation/node-selection.md — HA-DESIGN-SEL-001/r1; real DOM hierarchy, exact node inspection and a separate explicit class action.",
+  "targetViewports": ["320x960", "1440x960"],
+  "accessibility": { "status": "pass", "evidence": "Existing axe A/AA checks pass with the class actions. Real browser Enter/Space paths distinguish class buttons from tree rows; native buttons have French names and focus styles. Node labels and ARIA hierarchy remain intact." },
+  "responsive": { "status": "pass", "evidence": "Node and class browser paths verify no horizontal overflow at 320 and 1440 pixels. Actual Chromium individual and group captures were inspected: node identifiers and separate class actions wrap within the bounded structure panel." },
+  "contentStates": {
+    "loading": { "status": "not-applicable", "reason": "The local fixture mounts synchronously without remote project loading." },
+    "empty": { "status": "pass", "evidence": "Startup has no selected rows or overlays while recorded group/ID preview values remain visible. No object, key or ID is created by inspection." },
+    "error": { "status": "pass", "evidence": "Literal punctuation classes remain inspectable. Integration tests refuse unsupported animated targets and distinguish a literal a.b token from classes a and b without modifying keys or history." },
+    "partial": { "status": "pass", "evidence": "Explicit group selection preserves the divergent original margin diagnostic. Returning to a node enables individual margin inspection." },
+    "success": { "status": "pass", "evidence": "Mouse and keyboard journeys cover node to class to node, exact ID association, first individual ID edit, sibling preview retention and undo. Selection events and persistent-document separation are tested." },
+    "permission": { "status": "not-applicable", "reason": "No account or production permission operation is exposed by this local demo." }
+  },
+  "renderedEvidence": [
+    { "viewport": "320x960", "artifact": "node-selection-320.png", "observation": "The selected button#button-1 row and its separate .button action fit the narrow structure; only the first scene button has a selection outline. Inspector identifies individual inspection." },
+    { "viewport": "1440x960", "artifact": "node-selection-1440.png", "observation": "All four real button nodes remain in their parent hierarchy. Only button#button-1 is selected; class links are distinct and the property view is individual." },
+    { "viewport": "320x960", "artifact": "class-selection-320.png", "observation": "Explicit class selection fits the stacked workbench and retains the group selection state and simulated two-key count." },
+    { "viewport": "1440x960", "artifact": "class-selection-1440.png", "observation": "The .button action highlights four existing sibling rows and four scene elements without inventing a hierarchy group. Inspector shows the explicit class target and mixed-margin diagnostic." }
+  ]
+}
