@@ -43,10 +43,10 @@ export interface RealGradientHostOptions {
     readonly document?: ITimelineDocument;
     readonly context?: IHtmlAnimationContext;
 }
+/** Default workshop fixture only; every adapter path resolves objects from the document tree. */
 const layerId = 'gradientObject';
 const selector = '#gradient-box';
-const peerSelector = '#gradient-peer';
-const peerId = 'peerObject';
+const createdPrefix = 'object';
 const geometry: readonly GradientComponent[] = ['type', 'angle', 'centerX', 'centerY', 'radiusX', 'radiusY'];
 const stopComponents = ['color', 'opacity', 'position', 'present'] as const satisfies readonly GradientComponent[];
 const uncertainState = 'L’état du projet est incertain. Restaurez l’état hôte et recréez une instance cohérente avant de reprendre.';
@@ -78,8 +78,8 @@ function untyped(value: TimelinePropertyValue): GradientValue {
 function immutableChange(change: GradientEdit): GradientEdit {
     return Object.freeze({ ...change, value: typeof change.value === 'object' ? Object.freeze({ ...change.value }) : change.value });
 }
-function descriptors(context: IHtmlAnimationContext): readonly GradientTrack[] {
-    return Object.entries(context.bindings?.[layerId] ?? {}).flatMap(([property, binding]) => binding.kind === 'gradient' ? [{ property, gradientId: binding.gradientId, ...(binding.stopId ? { stopId: binding.stopId } : {}), component: binding.component, editable: true, interpolable: binding.component !== 'type' && binding.component !== 'present' }] : []);
+function descriptors(context: IHtmlAnimationContext, id: string): readonly GradientTrack[] {
+    return Object.entries(context.bindings?.[id] ?? {}).flatMap(([property, binding]) => binding.kind === 'gradient' ? [{ property, gradientId: binding.gradientId, ...(binding.stopId ? { stopId: binding.stopId } : {}), component: binding.component, editable: true, interpolable: binding.component !== 'type' && binding.component !== 'present' }] : []);
 }
 function binding(change: Omit<GradientEdit, 'value'>): HtmlPropertyBinding {
     return { kind: 'gradient', gradientId: change.gradientId, component: change.component, ...(change.stopId ? { stopId: change.stopId } : {}) };
@@ -92,6 +92,25 @@ function initialContext(type: GradientType): IHtmlAnimationContext {
 }
 function layers(nodes: readonly LayerNode[]): readonly ILayer[] {
     return nodes.flatMap(node => node.type === 'layer' ? [node] : layers(node.children));
+}
+function nodeIds(nodes: readonly LayerNode[]): readonly string[] {
+    return nodes.flatMap(node => node.type === 'layer' ? [node.id] : [node.id, ...nodeIds(node.children)]);
+}
+/** Selector of a layer in the recursive tree; folders and other target kinds have none. */
+function selectorOf(layer: ILayer | undefined): string | undefined {
+    return layer?.target && 'selector' in layer.target ? layer.target.selector : undefined;
+}
+function matches(root: ParentNode, candidate: string): boolean {
+    try { return root.querySelector(candidate) !== null; }
+    catch (error) {
+        if (error instanceof DOMException && error.name === 'SyntaxError') throw new Error(`Le sélecteur « ${candidate} » n’est pas valide.`, { cause: error });
+        throw error;
+    }
+}
+/** State reads survive a stored invalid selector; only explicit writes report it. */
+function firstMatch(root: ParentNode, candidate: string): Element | null {
+    try { return matches(root, candidate) ? root.querySelector(candidate) : null; }
+    catch { return null; }
 }
 /** Runtime resolution, never row order or locally recomputed selector specificity. */
 function candidateProjection(candidate: IHostRenderCandidate, stage: IHtmlStage, registry: PropertyRegistry): readonly ElementProjection[] {
@@ -164,18 +183,34 @@ function mappedResult(result: EditorTransactionResult): MutationResult {
         case 'faulted': return { status: 'faulted', message: diagnostic(result.fault.message) };
     }
 }
-function peerCommand(): ICommand {
-    const label = 'Create opacity target';
+/** Explicit native property mapping for a Designer CSS write; nothing is inferred from its name. */
+interface PropertyMapping {
+    readonly property: string;
+    readonly binding: HtmlPropertyBinding;
+    readonly valueKind: TimelinePropertyValue['kind'];
+    parse(value: string): TimelinePropertyValue;
+}
+const propertyMappings: Readonly<Partial<Record<string, PropertyMapping>>> = {
+    opacity: { property: 'opacity', binding: { kind: 'style', cssName: 'opacity' }, valueKind: 'number', parse(value) {
+        const number = Number(value);
+        if (!value.trim() || !Number.isFinite(number) || number < 0 || number > 1) throw new Error('Valeur d’opacité non valide.');
+        return { kind: 'number', value: number };
+    } },
+};
+interface CreatedTarget { readonly id: string; readonly selector: string }
+/** Root-level layers for explicit first-edit targets; undo removes exactly those identities. */
+function targetCommand(created: readonly CreatedTarget[]): ICommand {
+    const label = 'Create animation targets';
+    const ids = new Set(created.map(target => target.id));
     return createCommand(label, document => {
-        if (document.layers.some(layer => layer.id === peerId)) throw new CommandRefusedError(label, 'La cible de première édition existe déjà.');
-        return { ...document, layers: [...document.layers, { id: peerId, type: 'layer', name: peerSelector, target: { selector: peerSelector }, spans: [] }] };
-    }, document => ({ ...document, layers: document.layers.filter(layer => layer.id !== peerId) }));
+        if (nodeIds(document.layers).some(id => ids.has(id))) throw new CommandRefusedError(label, 'La cible de première édition existe déjà.');
+        return { ...document, layers: [...document.layers, ...created.map((target): ILayer => ({ id: target.id, type: 'layer', name: target.selector, target: { selector: target.selector }, spans: [] }))] };
+    }, document => ({ ...document, layers: document.layers.filter(layer => !ids.has(layer.id)) }));
 }
 
 /** Private genuine HA9 bridge; unsupported CSS and r3 geometry remain explicit refusals. */
 export function createRealGradientHost(editorContainer: HTMLElement, scene: HTMLElement, type: GradientType = 'linear', options: RealGradientHostOptions = {}): RealGradientHost {
-    const element = scene.querySelector<HTMLElement>(selector);
-    if (!element) throw new Error('La cible du dégradé réel est introuvable.');
+    if (!options.document && !scene.querySelector<HTMLElement>(selector)) throw new Error('La cible du dégradé réel est introuvable.');
     let owner = new DomPreviewOwner(scene);
     const clock = createManualClock();
     const stage = createHtmlInspectionStage({ root: scene, exclude: editorContainer, animationContext: options.context ?? initialContext(type), preserveSource: read => owner.withSource(read) });
@@ -212,15 +247,16 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
     let receivedTransaction = false;
     let lastFrame = editor.playback.frame;
     let pointSequence = 0;
-    let propertySequence = Object.keys(stage.animationContext.bindings?.[layerId] ?? {}).length;
+    let propertySequence = 0;
     const listeners = new Set<(reason: TimelineReason) => void>();
     const subscriptions: (() => void)[] = [];
-    const definitions = (context = stage.animationContext): readonly GradientDefinition[] => cloneGradientDefinitions((context.gradients?.[layerId] ?? []).map(gradient => ({ ...gradient, stops: gradient.stops.map(stop => {
+    const findLayer = (id: string): ILayer | undefined => layers(editor.document.layers).find(layer => layer.id === id);
+    const definitions = (id: string, context = stage.animationContext): readonly GradientDefinition[] => cloneGradientDefinitions((context.gradients?.[id] ?? []).map(gradient => ({ ...gradient, stops: gradient.stops.map(stop => {
         if (stop.color.a !== 1) throw new Error('La couleur du point doit être opaque ; utilisez sa piste d’opacité.');
         return { ...stop, color: { ...stop.color, a: 1 } };
     }) })));
-    const values = (id = layerId): TimelinePropertyValues => editor.sample(editor.playback.time.frame).layer(id)?.propertyValues ?? {};
-    const evaluation = (source = values(), context = stage.animationContext): readonly GradientDefinition[] => applyGradientEdits(definitions(context), descriptors(context).flatMap(descriptor => {
+    const values = (id: string): TimelinePropertyValues => editor.sample(editor.playback.time.frame).layer(id)?.propertyValues ?? {};
+    const evaluation = (id: string, source = values(id), context = stage.animationContext): readonly GradientDefinition[] => applyGradientEdits(definitions(id, context), descriptors(context, id).flatMap(descriptor => {
         const value = source[descriptor.property];
         return value ? [{ gradientId: descriptor.gradientId, ...(descriptor.stopId ? { stopId: descriptor.stopId } : {}), component: descriptor.component, value: untyped(value) }] : [];
     }));
@@ -235,7 +271,7 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
             // One static component activates public composition for an unrecorded gradient.
             // The runtime receives its full definition and every genuine sampled channel.
             if (candidate.kind !== 'gradient' || represented.has(candidate.gradientId)) continue;
-            structural ??= definitions(context);
+            structural ??= definitions(id, context);
             const base = readGradientComponent(structural, candidate);
             if (base === undefined) throw new Error('Base structurelle du dégradé indisponible.');
             composed[property] = typed(base);
@@ -271,12 +307,13 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
     };
     const revision = (): string => JSON.stringify([editor.document, stage.animationContext, editor.playback.frame]);
     const read = (id: string): GradientSnapshot | null => {
-        if (disposed || id !== layerId) return null;
-        const layer = editor.document.layers.find(layer => layer.id === id);
-        if (!layer || layer.type !== 'layer') return null;
+        if (disposed) return null;
+        const layer = findLayer(id);
+        const target = selectorOf(layer);
+        if (!layer || !target || !stage.animationContext.gradients?.[id]?.length) return null;
         const tracks = layer.propertyTimelines ?? {};
         const fault = faultMessage();
-        return { revision: revision(), objectId: layerId, selector, definitions: definitions(), gradients: evaluation(), tracks: descriptors(stage.animationContext).filter(descriptor => tracks[descriptor.property] !== undefined), editable: !fault, ...(fault ? { reason: fault } : {}), canAddStop: !fault };
+        return { revision: revision(), objectId: id, selector: target, definitions: definitions(id), gradients: evaluation(id), tracks: descriptors(stage.animationContext, id).filter(descriptor => tracks[descriptor.property] !== undefined), editable: !fault, ...(fault ? { reason: fault } : {}), canAddStop: !fault };
     };
     const validate = (request: GradientRequest): GradientSnapshot => {
         const snapshot = read(request.objectId);
@@ -284,26 +321,25 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         if (!snapshot.editable) throw new Error(snapshot.reason ?? uncertainState);
         return snapshot;
     };
-    const proposedValues = (changes: readonly GradientEdit[], context = stage.animationContext): TimelinePropertyValues => {
-        applyGradientEdits(evaluation(values(), context), changes);
-        const result: Record<string, TimelinePropertyValue> = { ...values() };
+    const proposedValues = (id: string, changes: readonly GradientEdit[], context = stage.animationContext): TimelinePropertyValues => {
+        applyGradientEdits(evaluation(id, values(id), context), changes);
+        const result: Record<string, TimelinePropertyValue> = { ...values(id) };
         for (const change of changes) {
-            const descriptor = descriptors(context).find(candidate => candidate.gradientId === change.gradientId && candidate.stopId === change.stopId && candidate.component === change.component);
+            const descriptor = descriptors(context, id).find(candidate => candidate.gradientId === change.gradientId && candidate.stopId === change.stopId && candidate.component === change.component);
             if (!descriptor) throw new Error('Ce composant de dégradé n’est pas enregistré.');
             result[descriptor.property] = typed(change.value);
         }
         return result;
     };
     const getState = (): TimelineState => {
-        const layers = editor.document.layers.filter((layer): layer is ILayer => layer.type === 'layer');
+        const objects = layers(editor.document.layers).flatMap(layer => { const target = selectorOf(layer); return target ? [{ id: layer.id, selector: target }] : []; });
         const projected: Record<string, Readonly<Record<string, string>>> = {};
-        for (const layer of layers) {
-            if (!layer.target || !('selector' in layer.target)) continue;
-            const target = scene.querySelector(layer.target.selector);
-            if (target) projected[layer.id] = declarations(target, values(layer.id), layer.id);
+        for (const object of objects) {
+            const target = firstMatch(scene, object.selector);
+            if (target) projected[object.id] = declarations(target, values(object.id), object.id);
         }
         const fault = faultMessage();
-        return { frame: editor.playback.frame, duration: editor.playback.totalFrames, objects: layers.flatMap(layer => layer.target && 'selector' in layer.target ? [{ id: layer.id, selector: layer.target.selector }] : []), values: projected, selectedObjectId: selection.selected()[0] ?? null, canUndo: !fault && editor.canUndo, canRedo: !fault && editor.canRedo, ...(fault ? { fault } : {}) };
+        return { frame: editor.playback.frame, duration: editor.playback.totalFrames, objects, values: projected, selectedObjectId: selection.selected()[0] ?? null, canUndo: !fault && editor.canUndo, canRedo: !fault && editor.canRedo, ...(fault ? { fault } : {}) };
     };
     let lastState = getState();
     const flush = (outcome: MutationResult): MutationResult => {
@@ -341,51 +377,87 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         } finally { running--; }
     };
     const gradientPlan = (request: GradientRequest, snapshot: GradientSnapshot): { context: IHtmlAnimationContext; changes: readonly GradientEdit[]; properties: readonly PropertyTimelineOperation[] } => {
+        const id = snapshot.objectId;
         let context = stage.animationContext;
         let changes: readonly GradientEdit[];
         if (request.intent.kind === 'add-stop') {
             const intent = request.intent;
             const original = snapshot.definitions.find(gradient => gradient.id === intent.gradientId);
             if (!original) throw new Error('Dégradé introuvable.');
-            let id: string;
-            do { id = `point${++pointSequence}`; } while (original.stops.some(stop => stop.id === id));
-            const stop = { id, color: { ...intent.color }, opacity: intent.opacity, position: intent.position, present: false };
+            let pointId: string;
+            do { pointId = `point${++pointSequence}`; } while (original.stops.some(stop => stop.id === pointId));
+            const stop = { id: pointId, color: { ...intent.color }, opacity: intent.opacity, position: intent.position, present: false };
             const candidate = cloneGradientDefinitions(snapshot.definitions.map(gradient => gradient.id === original.id ? { ...gradient, stops: [...gradient.stops, stop] } : gradient));
-            const bindings = { ...context.bindings?.[layerId] };
-            changes = stopComponents.map(component => ({ gradientId: original.id, stopId: id, component, value: component === 'present' ? true : stop[component] }));
+            const bindings = { ...context.bindings?.[id] };
+            changes = stopComponents.map(component => ({ gradientId: original.id, stopId: pointId, component, value: component === 'present' ? true : stop[component] }));
             for (const change of changes) {
                 let property: string;
                 do { property = `gradientChannel${++propertySequence}`; } while (property in bindings);
                 bindings[property] = binding(change);
             }
-            context = { ...context, gradients: { ...context.gradients, [layerId]: candidate }, bindings: { ...context.bindings, [layerId]: bindings } };
+            context = { ...context, gradients: { ...context.gradients, [id]: candidate }, bindings: { ...context.bindings, [id]: bindings } };
         } else {
             changes = request.intent.changes.filter(change => JSON.stringify(readGradientComponent(snapshot.gradients, change)) !== JSON.stringify(change.value));
         }
-        proposedValues(changes, context);
+        proposedValues(id, changes, context);
         const properties: PropertyTimelineOperation[] = changes.map(change => {
-            const descriptor = descriptors(context).find(candidate => candidate.gradientId === change.gradientId && candidate.stopId === change.stopId && candidate.component === change.component);
+            const descriptor = descriptors(context, id).find(candidate => candidate.gradientId === change.gradientId && candidate.stopId === change.stopId && candidate.component === change.component);
             if (!descriptor) throw new Error('Composant inconnu.');
-            const existing = stage.animationContext.bindings?.[layerId]?.[descriptor.property];
-            const inspection = existing ? stage.inspectProperty({ selector }, descriptor.property, { layerId, valueKind: kind(change.component) }) : null;
-            const initialValue = existing ? inspection?.initialValue : typed(readGradientComponent(definitions(context), change)!);
+            const existing = stage.animationContext.bindings?.[id]?.[descriptor.property];
+            const inspection = existing ? stage.inspectProperty({ selector: snapshot.selector }, descriptor.property, { layerId: id, valueKind: kind(change.component) }) : null;
+            const base = existing ? undefined : readGradientComponent(definitions(id, context), change);
+            if (!existing && base === undefined) throw new Error('Base structurelle du dégradé indisponible.');
+            const initialValue = existing ? inspection?.initialValue : base === undefined ? undefined : typed(base);
             if (!initialValue || inspection && !inspection.editable) throw new Error(inspection?.reason ?? 'Base originale indisponible.');
-            return { kind: 'set', layerId, property: descriptor.property, frame: request.frame, value: typed(change.value), initialValue };
+            return { kind: 'set', layerId: id, property: descriptor.property, frame: request.frame, value: typed(change.value), initialValue };
         });
         return { context, changes: Object.freeze(changes.map(immutableChange)), properties };
     };
-    const opacityPlan = (writes: readonly PropertyWrite[]): Pick<IEditorTransactionRequest, 'commands' | 'properties' | 'htmlContext'> => {
+    /** Existing layer anywhere in the tree, or one explicit new root target shared by its writes. */
+    const resolveTarget = (write: PropertyWrite, created: Map<string, string>, taken: Set<string>): { readonly id: string; readonly existing: boolean } => {
+        const mismatch = 'L’objet demandé ne correspond pas à sa cible.';
+        if (!matches(scene, write.selector) || !stage.accepts({ selector: write.selector })) throw new Error(`La cible « ${write.selector} » est introuvable dans la scène.`);
+        if (findLayer(write.objectId) || !write.objectId.startsWith('html:')) {
+            if (selectorOf(findLayer(write.objectId)) !== write.selector) throw new Error(mismatch);
+            return { id: write.objectId, existing: true };
+        }
+        if (write.objectId.slice('html:'.length) !== write.selector) throw new Error(mismatch);
+        const owners = layers(editor.document.layers).filter(layer => selectorOf(layer) === write.selector);
+        if (owners.length > 1) throw new Error('Plusieurs calques animent cette cible ; choisissez explicitement l’objet.');
+        if (owners[0]) return { id: owners[0].id, existing: true };
+        let id = created.get(write.selector);
+        if (!id) {
+            let index = 0;
+            do { id = `${createdPrefix}${++index}`; } while (taken.has(id));
+            taken.add(id); created.set(write.selector, id);
+        }
+        return { id, existing: false };
+    };
+    const propertyPlan = (writes: readonly PropertyWrite[]): Pick<IEditorTransactionRequest, 'commands' | 'properties' | 'htmlContext'> => {
         if (!writes.length) return {};
-        if (writes.length !== 1 || writes[0]?.selector !== peerSelector || writes[0].property !== 'opacity') throw new Error('Ce pont réel ne mappe que l’opacité du témoin. Les autres déclarations CSS et ajustements spatiaux r3 exigent une correspondance explicite.');
-        const write = writes[0]; const value = Number(write.value);
-        if (write.objectId !== peerId && write.objectId !== `html:${peerSelector}`) throw new Error('L’objet demandé ne correspond pas au témoin d’opacité.');
-        if (!write.value.trim() || !Number.isFinite(value) || value < 0 || value > 1 || !scene.querySelector(peerSelector)) throw new Error('Valeur ou cible d’opacité non valide.');
-        const existing = editor.document.layers.find(layer => layer.id === peerId);
-        if (existing && (existing.type !== 'layer' || !existing.target || !('selector' in existing.target) || existing.target.selector !== peerSelector)) throw new Error('Le calque du témoin ne correspond plus à sa cible.');
-        const inspection = stage.inspectProperty({ selector: peerSelector }, 'opacity', { ...(existing ? { layerId: peerId } : {}), valueKind: 'number' });
-        if (!inspection.editable || !inspection.initialValue) throw new Error(inspection.reason ?? 'Base originale d’opacité indisponible.');
-        const context = { ...stage.animationContext, bindings: { ...stage.animationContext.bindings, [peerId]: { ...stage.animationContext.bindings?.[peerId], opacity: { kind: 'style' as const, cssName: 'opacity' } } } };
-        return { ...(existing ? {} : { commands: [peerCommand()] }), htmlContext: { stageId: stage.id, context }, properties: [{ kind: 'set', layerId: peerId, property: 'opacity', frame: write.frame, value: { kind: 'number', value }, initialValue: inspection.initialValue }] };
+        const current = stage.animationContext;
+        const taken = new Set([...nodeIds(editor.document.layers), ...Object.keys(current.bindings ?? {}), ...Object.keys(current.gradients ?? {})]);
+        const created = new Map<string, string>();
+        const bindings: Record<string, Record<string, HtmlPropertyBinding>> = {};
+        const written = new Set<string>();
+        const properties = writes.map((write): PropertyTimelineOperation => {
+            const mapping = Object.hasOwn(propertyMappings, write.property) ? propertyMappings[write.property] : undefined;
+            if (!mapping) throw new Error(`La propriété « ${write.property} » n’a pas encore de correspondance Timeline explicite. Les ajustements spatiaux r3 restent indisponibles.`);
+            const target = resolveTarget(write, created, taken);
+            const key = JSON.stringify([target.id, mapping.property]);
+            if (written.has(key)) throw new Error('Une même propriété reçoit plusieurs valeurs dans cette commande.');
+            written.add(key);
+            const bound = current.bindings?.[target.id]?.[mapping.property];
+            if (bound && JSON.stringify(bound) !== JSON.stringify(mapping.binding)) throw new Error('Cette propriété est déjà liée à une autre déclaration ; sa liaison n’est pas remplacée implicitement.');
+            const value = mapping.parse(write.value);
+            const inspection = stage.inspectProperty({ selector: write.selector }, mapping.property, { ...(target.existing ? { layerId: target.id } : {}), valueKind: mapping.valueKind });
+            if (!inspection.editable || !inspection.initialValue) throw new Error(inspection.reason ?? 'Base originale indisponible.');
+            bindings[target.id] = { ...current.bindings?.[target.id], ...bindings[target.id], [mapping.property]: mapping.binding };
+            return { kind: 'set', layerId: target.id, property: mapping.property, frame: write.frame, value, initialValue: inspection.initialValue };
+        });
+        const context = { ...current, bindings: { ...current.bindings, ...bindings } };
+        const targets = [...created].map(([target, id]) => ({ id, selector: target }));
+        return { ...(targets.length ? { commands: [targetCommand(targets)] } : {}), htmlContext: { stageId: stage.id, context }, properties };
     };
     const adapter: TimelineAdapter = {
         kind: 'real', contractRevision: 'HA-TL-001/r2', get preview() { return owner; },
@@ -394,12 +466,12 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
             read,
             compose(request) {
                 try {
-                    validate(request);
+                    const snapshot = validate(request);
                     if (request.intent.kind !== 'edit') throw new Error('L’aperçu structurel attend la validation de la commande.');
-                    const source = proposedValues(request.intent.changes);
-                    const target = scene.querySelector<HTMLElement>(selector);
+                    const source = proposedValues(snapshot.objectId, request.intent.changes);
+                    const target = scene.querySelector<HTMLElement>(snapshot.selector);
                     if (!target) throw new Error('La cible actuelle du dégradé est introuvable.');
-                    return { status: 'composed', gradients: evaluation(source), declarations: declarations(target, source, layerId) };
+                    return { status: 'composed', gradients: evaluation(snapshot.objectId, source), declarations: declarations(target, source, snapshot.objectId) };
                 } catch (error) { return { status: 'rejected', message: error instanceof Error ? error.message : 'Composition réelle indisponible.' }; }
             },
             execute(request, isCurrent): GradientMutationResult {
@@ -420,12 +492,12 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
             const reason = refusal(); if (reason) return reason;
             if (effect && !effect.prepare) return { status: 'rejected', message: 'L’effet hôte doit fournir une préparation pure et une compensation exacte pour HA8.' };
             try {
-                const plan = opacityPlan(writes);
+                const plan = propertyPlan(writes);
                 return transact({ label, ...plan, ...(effect?.prepare ? { effect: { prepare: direction => effect.prepare!(direction) } } : {}) });
             } catch (error) { return { status: 'rejected', message: error instanceof Error ? error.message : 'Commande réelle refusée.' }; }
         },
         undo: () => history('undo'), redo: () => history('redo'),
-        selectObject(id) { if (disposed) return; if (id === null) selection.clear(); else if (editor.document.layers.some(layer => layer.id === id)) selection.select([id], 'replace'); },
+        selectObject(id) { if (disposed) return; if (id === null) selection.clear(); else if (findLayer(id)) selection.select([id], 'replace'); },
         onChange(listener) { if (disposed) return () => {}; listeners.add(listener); return () => { listeners.delete(listener); }; },
     };
     subscriptions.push(
