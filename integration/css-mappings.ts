@@ -1,4 +1,5 @@
 // integration/css-mappings.ts
+import { namedColorHex } from '@kazo-ca/css-properties';
 import type { HtmlPropertyBinding, TimelinePropertyValue } from '@kazo-ca/timeline-runtime';
 
 /**
@@ -14,7 +15,7 @@ export interface PropertyMapping {
 }
 type Color = Extract<TimelinePropertyValue, { kind: 'color' }>;
 
-const colorMessage = 'Valeur de couleur non prise en charge : utilisez #rgb, #rrggbb (avec alpha facultatif), rgb(), rgba() ou transparent.';
+const colorMessage = 'Valeur de couleur non prise en charge : utilisez un nom de couleur CSS, #rgb, #rrggbb (avec alpha facultatif), rgb(), rgba() ou transparent.';
 const borderStyles = new Set(['none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset']);
 const logicalBorderStyles: Readonly<Record<string, string>> = {
     'border-block-start-style': 'borderBlockStartStyle',
@@ -68,7 +69,8 @@ function functionalColor(value: string): Color | undefined {
 export function parseCssColor(value: string): Color {
     const trimmed = value.trim();
     if (trimmed.toLowerCase() === 'transparent') return { kind: 'color', r: 0, g: 0, b: 0, a: 0 };
-    const color = hexColor(trimmed) ?? functionalColor(trimmed);
+    const named = namedColorHex(trimmed);
+    const color = named ? hexColor(named) : hexColor(trimmed) ?? functionalColor(trimmed);
     if (!color) throw new Error(colorMessage);
     return color;
 }

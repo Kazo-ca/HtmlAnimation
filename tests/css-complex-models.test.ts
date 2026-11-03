@@ -106,10 +106,10 @@ describe('controlled complex CSS editor drafts', () => {
     click(root, 'Appliquer'); expect(apply).toHaveBeenCalledExactlyOnceWith(property === 'rotate' ? '20deg' : property === 'translate' ? '10px 20px' : '2');
   });
   it('preserves unfamiliar background color tokens through conservative structural edits', () => {
-    const { root, apply } = setup('background', 'skyblue center / cover no-repeat', 'background');
+    const { root, apply } = setup('background', 'canvastext center / cover no-repeat', 'background');
     expect(root.querySelector('[aria-label="Position du fond 1"]')).toBeNull();
     set(root, 'Composante 2 du calque 1', 'right center'); click(root, 'Appliquer');
-    expect(apply).toHaveBeenCalledExactlyOnceWith('skyblue right center / cover no-repeat');
+    expect(apply).toHaveBeenCalledExactlyOnceWith('canvastext right center / cover no-repeat');
   });
   it('distinguishes an oblique font angle from its size and preserves their adjacency', () => {
     const { root, apply } = setup('font', 'oblique 20deg 700 16px serif', 'font');
