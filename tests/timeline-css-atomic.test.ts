@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { IHtmlAnimationContext, ILayer, ITimelineDocument, LayerNode } from '@kazo-ca/timeline-runtime';
 import { createGradientScene } from '../fixtures/gradient-scene.js';
 import { createRealGradientHost } from '../integration/timeline-real.js';
+import { namedColorNames } from '../packages/css-properties/src/index.js';
+import { readColor } from '../packages/css-properties/src/editors/color.js';
 
 const cleanup: (() => void)[] = [];
 afterEach(() => { for (const dispose of cleanup.splice(0).reverse()) dispose(); document.body.replaceChildren(); });
@@ -107,7 +109,7 @@ describe('atomic CSS through the genuine bridge', () => {
             ['color', 'rgb(5., 0, 0)', 'couleur'],
             ['color', 'rgba(0, 0, 0, 1.5)', 'hors intervalle'],
             ['color', 'rgb()', 'couleur'],
-            ['color', 'red', 'couleur'],
+            ['color', 'reddish', 'couleur'],
             ['opacity', '0x1', 'opacité non valide'],
             ['opacity', '0b1', 'opacité non valide'],
             ['opacity', '1.5', 'hors intervalle'],
@@ -116,6 +118,15 @@ describe('atomic CSS through the genuine bridge', () => {
         expect(host.editor.document).toBe(before);
         expect(host.adapter.execute('Percent', [write('#gradient-box', 'opacity', '50%')]).status).toBe('changed');
         expect(layerFor(host, '#gradient-box').propertyTimelines?.opacity?.keys[0]?.value).toEqual({ kind: 'number', value: 0.5 });
+    });
+    it('accepts the CSS named colors, case-insensitively, as typed opaque colors', () => {
+        expect(namedColorNames()).toHaveLength(148);
+        const { host } = setup();
+        expect(host.adapter.execute('Named', [write('#gradient-box', 'color', 'RebeccaPurple')]).status).toBe('changed');
+        expect(layerFor(host, '#gradient-box').propertyTimelines?.color?.keys[0]?.value).toEqual({ kind: 'color', r: 0x66 / 255, g: 0x33 / 255, b: 0x99 / 255, a: 1 });
+        expect(readColor('lightgoldenrodyellow')).toEqual({ red: 250, green: 250, blue: 210, alpha: 1 });
+        expect(readColor('transparent')).toMatchObject({ alpha: 0 });
+        expect(readColor('constructor')).toBeNull();
     });
     it('refuses writes to a layer locked directly or through its folder', () => {
         const locked: ITimelineDocument = { version: '2.0.0', settings, layers: [

@@ -1,10 +1,10 @@
 // packages/css-properties/src/editors/color.ts
 import { field } from './fields.js';
 import type { EditorContext } from './fields.js';
+import { namedColorHex } from '../named-colors.js';
 export interface RgbaColor { readonly red: number; readonly green: number; readonly blue: number; readonly alpha: number }
-const NAMED: Readonly<Record<string, string>> = { transparent: '#00000000', black: '#000000', white: '#ffffff', red: '#ff0000', blue: '#0000ff', green: '#008000', lime: '#00ff00', yellow: '#ffff00', orange: '#ffa500', purple: '#800080', rebeccapurple: '#663399', gray: '#808080', grey: '#808080', pink: '#ffc0cb', navy: '#000080', teal: '#008080', aqua: '#00ffff', fuchsia: '#ff00ff', maroon: '#800000', olive: '#808000', silver: '#c0c0c0' };
 export function readColor(value: string): RgbaColor | null {
-  const normalized = value.trim().toLowerCase(); const hex = /^#([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i.exec(NAMED[normalized] ?? normalized);
+  const normalized = value.trim().toLowerCase(); const hex = /^#([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i.exec(normalized === 'transparent' ? '#00000000' : namedColorHex(normalized) ?? normalized);
   if (hex) {
     const source = hex[1] ?? ''; const full = source.length < 5 ? [...source].map(char => char + char).join('') : source;
     return { red: Number.parseInt(full.slice(0, 2), 16), green: Number.parseInt(full.slice(2, 4), 16), blue: Number.parseInt(full.slice(4, 6), 16), alpha: full.length === 8 ? Number.parseInt(full.slice(6), 16) / 255 : 1 };

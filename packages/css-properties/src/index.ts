@@ -9,6 +9,7 @@ export type { CssPropertyMetadata, CssEditorKind } from './catalog.js';
 export * from './gradient-types.js';
 export { cloneGradientDefinitions, validateGradientDefinitions, applyGradientEdits, gradientCss, readGradientComponent } from './gradient-model.js';
 export { GradientEditor } from './gradient-editor.js';
+export { namedColorHex, namedColorNames } from './named-colors.js';
 
 export interface CssProperty {
   readonly name: string;

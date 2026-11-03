@@ -83,5 +83,7 @@ body { margin: 0; }
   @media(max-width:1100px) { .workspace { grid-template-columns: 190px minmax(280px,1fr) 280px; } .stage-mat { padding: 32px 16px; } .stage-toolbar>span { display:none; } .example-scene { padding:24px 20px; } }
   @media(max-width:820px) { .workspace { grid-template-columns: minmax(0,1fr) 280px; } .structure { grid-column:1/-1; max-height:220px; overflow:auto; border-bottom:1px solid var(--line); } .stage-area { border-left:0; } .app-header { padding:12px; flex-wrap:wrap; gap:12px; } }
   @media(max-width:590px) { .workspace { display:flex; flex-direction:column; } .structure,.stage-area,.inspector { width:100%; } .inspector { max-height:720px; } .stage-area { border-right:0; } .stage-mat { padding:24px 16px; } .history { margin-left:0; } .app-footer { padding:12px; } }
-  @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto; transition:none; animation:none; } }
+  // The animated scene is the authored subject: reduced motion applies to the workbench only,
+  // so this page's own animation rules never compete with an exported CSS animation.
+  @media(prefers-reduced-motion:reduce) { *:not(.stage-mat *),*:not(.stage-mat *)::before,*:not(.stage-mat *)::after { scroll-behavior:auto; transition:none; animation:none; } }
 }
