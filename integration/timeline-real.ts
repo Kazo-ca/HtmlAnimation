@@ -461,6 +461,36 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         if (bases.some(base => JSON.stringify(base) !== JSON.stringify(first))) throw new Error('Les éléments de ce groupe ont des bases différentes pour cette propriété ; choisissez une cible plus précise.');
         return first;
     };
+    /** Composes proposed geometry exactly as committed keys would render, without any write. */
+    const composeSpatialPreview = (objectId: string, target: string, proposed: Readonly<Record<string, string>>): Readonly<Record<string, string>> => {
+        const elements = stage.resolveElements({ selector: target });
+        const element = elements[0];
+        if (elements.length !== 1 || !(element instanceof HTMLElement)) throw new Error('Une cible individuelle est nécessaire pour l’aperçu des poignées.');
+        const layer = objectId.startsWith('html:') ? undefined : findLayer(objectId);
+        if (layer && selectorOf(layer) !== target) throw new Error('L’objet demandé ne correspond pas à sa cible.');
+        const bound = layer ? stage.animationContext.bindings?.[layer.id] ?? {} : {};
+        const definitions = layer ? stage.animationContext.spatial?.[layer.id] ?? [] : [];
+        if (definitions.length > 1) throw new Error('Plusieurs projections spatiales existent sur cet objet ; aucune n’est choisie implicitement.');
+        const definition = definitions[0] ?? captureSpatialDefinition(elements, read => owner.withSource(read));
+        const sampled = layer ? values(layer.id) : {};
+        const composed: Record<string, TimelinePropertyValue> = {};
+        const resolved: Record<string, IHtmlResolvedBinding> = {};
+        for (const [property, binding] of Object.entries(bound)) {
+            const value = sampled[property];
+            if (binding.kind === 'spatial' && value) { composed[property] = value; resolved[property] = { binding, valueKind: value.kind }; }
+        }
+        for (const [component, text] of Object.entries(proposed)) {
+            if (!isSpatialComponent(component)) continue;
+            const prior = bound[spatialAlias(component)];
+            const parsed = parseSpatialWrite(component, text, prior?.kind === 'spatial' && 'unit' in prior ? prior.unit : undefined);
+            const binding = { ...parsed.binding, projectionId: definition.id };
+            if (prior && JSON.stringify(prior) !== JSON.stringify(binding)) throw new Error('L’unité de cette piste spatiale est déjà fixée ; une conversion explicite est nécessaire et n’est jamais déduite.');
+            composed[parsed.property] = parsed.value; resolved[parsed.property] = { binding, valueKind: parsed.value.kind };
+        }
+        const result = composeHtmlDeclarations(element, composed, resolved, [], undefined, [definition]);
+        if (result.diagnostics.length) throw new Error(result.diagnostics.map(diagnostic => diagnostic.reason).join(' '));
+        return result.declarations;
+    };
     const propertyPlan = (writes: readonly PropertyWrite[]): Pick<IEditorTransactionRequest, 'commands' | 'properties' | 'htmlContext'> => {
         if (!writes.length) return {};
         const current = stage.animationContext;
@@ -516,6 +546,11 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
     const adapter: TimelineAdapter = {
         kind: 'real', contractRevision: 'HA-TL-001/r2', get preview() { return owner; },
         spatialGeometry: true,
+        composeGeometry(objectId, target, proposed) {
+            const reason = refusal(); if (reason) return { status: 'rejected', message: reason.message };
+            try { return { status: 'composed', declarations: composeSpatialPreview(objectId, target, proposed) }; }
+            catch (error) { return { status: 'rejected', message: error instanceof Error ? error.message : 'Aperçu géométrique indisponible.' }; }
+        },
         conflicts: createConflictCapability({ stage, findLayer, revision, run, resolveHtmlConflict: request => editor.transactions.resolveHtmlConflict(request) }),
         getState: () => disposed ? { ...lastState, canUndo: false, canRedo: false } : getState(),
         gradients: {
