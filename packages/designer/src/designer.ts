@@ -13,6 +13,7 @@ import { resolveTarget, specificity, targetChoices } from './targets.js';
 import type { HistoryDirection, MutationResult, PreparedEffect, TimelineAdapter, TimelineReason, TimelineState } from './timeline-adapter.js';
 import { geometryContext, geometryDefaults, geometryProperties, geometryStateKey, geometryValues, isGeometryProperty, pivotCoordinates, projectGeometry, unresolvedPercentageHeight, validGeometryValue } from './geometry-dom.js';
 import type { GeometryProperty } from './geometry-dom.js';
+import { ManipulationMarker, sweepManipulationMarkers } from './manipulation-marker.js';
 import { geometryLengthPixels, snapPosition, updateGeometry } from './geometry-math.js';
 import type { GeometryGuide, GeometryMetrics, GeometryState, GeometryTool, Point } from './geometry-math.js';
 import { GeometryControls } from './geometry-controls.js';
@@ -36,6 +37,8 @@ interface GeometryGesture {
   readonly state: GeometryState; readonly metrics: GeometryMetrics; readonly rect: DOMRect; readonly parentRect: DOMRect;
   values: Readonly<Partial<GeometryState>>; guides: readonly GeometryGuide[]; confirmation: boolean;
   readonly unknownTransform: string | null; convertedTransform: string | null;
+  /** Temporary unique class, released at the end of the manipulation; `shared` previews through the owner. */
+  readonly marker: ManipulationMarker; readonly shared: boolean;
 }
 
 export interface DesignerOptions<T> {
@@ -49,6 +52,7 @@ const commonProperties = ['opacity', 'width', 'height', 'position', 'left', 'top
 const labels: Readonly<Record<string, string>> = { opacity: 'Opacité', width: 'Largeur', height: 'Hauteur', 'margin-top': 'Marge supérieure', 'background-color': 'Couleur de fond', color: 'Couleur', transform: 'Transformation', translateX: 'Déplacement X', translateY: 'Déplacement Y', rotation: 'Rotation', rotate: 'Rotation CSS', scaleX: 'Échelle X', scaleY: 'Échelle Y', pivotX: 'Pivot X', pivotY: 'Pivot Y' };
 const sharedGeometryReason = 'Les poignées géométriques ne sont pas encore disponibles avec l’aperçu partagé.';
 const sharedHandlesReason = 'Les poignées géométriques ne sont pas encore disponibles avec l’aperçu partagé ; utilisez les champs de géométrie.';
+const sharedDimensionsReason = 'Avec l’aperçu partagé, les dimensions se modifient dans le panneau CSS ; leur poignée n’est pas prise en charge.';
 
 export class HtmlDesigner<T = unknown> {
   private readonly scene: HTMLElement;
@@ -156,7 +160,7 @@ export class HtmlDesigner<T = unknown> {
         this.elements = []; this.target = null; this.projectedValues = new Map();
         this.pending = null; this.pendingDocumentChange = null; this.deferredNotifications = [];
         this.contextEpoch++; this.pendingConflict = null; this.resolutionsKey = '';
-        this.gesture = null; this.pendingGeometryTarget = false; this.transactionPreview = false;
+        this.gesture?.marker.release(); this.gesture = null; this.pendingGeometryTarget = false; this.transactionPreview = false;
         this.gradientController?.resetForProject(); this.pendingProjectChange = event;
       },
       rollback: () => {
@@ -167,7 +171,7 @@ export class HtmlDesigner<T = unknown> {
         this.pendingProjectChange = this.fault ? null : capture.project; this.deferredNotifications = this.fault ? [] : [...capture.notifications];
         this.contextEpoch = capture.epoch; this.pendingConflict = this.fault ? null : capture.conflict;
         this.resolutionsKey = capture.resolutionsKey; this.transactionPreview = capture.transactionPreview;
-        this.gesture = this.fault ? null : capture.gesture; this.pendingGeometryTarget = !this.fault && capture.geometryTarget;
+        this.gesture = this.fault || !capture.gesture ? null : { ...capture.gesture, marker: new ManipulationMarker([capture.gesture.element]) }; this.pendingGeometryTarget = !this.fault && capture.geometryTarget;
         this.geometryTool = capture.geometryTool; this.geometryOptions = { ...capture.geometryOptions }; this.mode = capture.mode;
         if (capture.gradient) this.gradientController?.restoreSession(capture.gradient);
       },
@@ -260,7 +264,8 @@ export class HtmlDesigner<T = unknown> {
     if (reason === 'cancel' || reason === 'execute' || reason === 'undo' || reason === 'redo') this.transactionPreview = false;
     this.gradientController?.cancel(false, reason === 'selection');
     this.cancelConflict();
-    if (this.gesture) { this.gesture = null; }
+    const gesture = this.gesture;
+    if (gesture) { this.gesture = null; gesture.marker.release(); this.clearSharedDraft(gesture); }
     if (reason === 'selection') {
       this.pending = null; this.ui.hideTargets();
       const state = this.adapter.getState(); const object = state.objects.find(object => object.id === state.selectedObjectId);
@@ -440,7 +445,7 @@ export class HtmlDesigner<T = unknown> {
     return values.size === 1 ? [...values][0] ?? '' : '';
   }
   public getGeometryState(): GeometryState | null {
-    if (this.adapter.preview) return null;
+    if (this.adapter.preview) return this.sharedGeometryState();
     if (this.gesture) return { ...this.gesture.state, ...this.gesture.values };
     const element = this.elements.length === 1 ? this.elements[0] : undefined;
     if (!element || this.disposed) return null;
@@ -450,8 +455,18 @@ export class HtmlDesigner<T = unknown> {
     const height = evaluated.height ?? defaults.height;
     return { translateX: evaluated.translateX ?? defaults.translateX, translateY: evaluated.translateY ?? defaults.translateY, rotate: evaluated.rotation ?? defaults.rotate, scaleX: evaluated.scaleX ?? defaults.scaleX, scaleY: evaluated.scaleY ?? defaults.scaleY, pivotX: evaluated.pivotX ?? defaults.pivotX, pivotY: evaluated.pivotY ?? defaults.pivotY, width: evaluated.width ?? defaults.width, height: unresolvedPercentageHeight(element, height) ? 'auto' : height };
   }
+  /** Field values evaluated by the adapter; a gesture overlays its own proposal. */
+  private sharedGeometryState(): GeometryState | null {
+    if (!this.sharedHandles()) return null;
+    if (this.gesture) return { ...this.gesture.state, ...this.gesture.values };
+    const element = this.elements.length === 1 ? this.elements[0] : undefined;
+    if (!element || this.disposed) return null;
+    const state = this.adapter.getState(); const defaults = geometryDefaults(this.origin, element);
+    const value = (property: GeometryProperty, fallback: string): string => this.sharedGeometryValue(property, state) || fallback;
+    return { translateX: value('translateX', defaults.translateX), translateY: value('translateY', defaults.translateY), rotate: value('rotation', defaults.rotate), scaleX: value('scaleX', defaults.scaleX), scaleY: value('scaleY', defaults.scaleY), pivotX: value('pivotX', defaults.pivotX), pivotY: value('pivotY', defaults.pivotY), width: defaults.width, height: unresolvedPercentageHeight(element, defaults.height) ? 'auto' : defaults.height };
+  }
   private geometryView(): GeometryView {
-    return { element: !this.adapter.preview && this.elements.length === 1 ? this.elements[0] ?? null : null, state: this.getGeometryState(), tool: this.geometryTool, mode: this.fault ? 'test' : this.mode, active: this.gesture !== null, options: this.geometryOptions, guides: this.gesture?.guides ?? [] };
+    return { element: (!this.adapter.preview || this.sharedHandles()) && this.elements.length === 1 ? this.elements[0] ?? null : null, state: this.getGeometryState(), tool: this.geometryTool, mode: this.fault ? 'test' : this.mode, active: this.gesture !== null, options: this.geometryOptions, guides: this.gesture?.guides ?? [] };
   }
   public setGeometryTool(tool: GeometryTool): void {
     if (!['move', 'dimensions', 'rotate', 'scale', 'pivot'].includes(tool)) { this.report('Outil géométrique inconnu.'); return; }
@@ -463,7 +478,9 @@ export class HtmlDesigner<T = unknown> {
   }
   public beginGeometryGesture(tool: GeometryTool): MutationResult {
     if (this.fault) return this.faultResult();
-    if (this.adapter.preview) return this.reject(this.adapter.spatialGeometry ? sharedHandlesReason : sharedGeometryReason);
+    const shared = Boolean(this.adapter.preview);
+    if (shared && !this.sharedHandles()) return this.reject(this.adapter.spatialGeometry ? sharedHandlesReason : sharedGeometryReason);
+    if (shared && tool === 'dimensions') return this.reject(sharedDimensionsReason);
     this.gradientController?.cancel(false);
     if (this.disposed || this.mode !== 'select') return this.reject('Les outils géométriques sont disponibles en mode Sélection.');
     if (this.gesture) return this.reject('Un geste est déjà en cours.');
@@ -475,20 +492,22 @@ export class HtmlDesigner<T = unknown> {
       return this.reject('Choisissez la cible du geste avant son premier enregistrement.');
     }
     const state = this.getGeometryState();
-    const base = this.projectedValues.get(element)?.transform ?? this.origin.value(element, 'transform');
-    const authoredTransform = this.projectedValues.get(element)?.transform ?? this.origin.authoredValue(element, 'transform');
+    // A shared preview renders the composed projection; its gesture starts from the source.
+    const projected = shared ? undefined : this.projectedValues.get(element)?.transform;
+    const base = projected ?? this.origin.value(element, 'transform');
+    const authoredTransform = projected ?? this.origin.authoredValue(element, 'transform');
     if (tool === 'dimensions' && /%|var\(|calc\(/i.test(authoredTransform)) return this.reject('La transformation de base dépend d’unités relatives ou d’expressions. Modifiez les dimensions dans le panneau CSS pour conserver cette source ; le suivi de cette poignée n’est pas pris en charge.');
     const context = geometryContext(element, base, state ?? undefined);
     if (!state || context.status === 'rejected') return this.reject(context.status === 'rejected' ? context.message : 'État géométrique indisponible.');
     this.geometryTool = tool;
-    const unknownTransform = base && base !== 'none' && ((!this.origin.authoredValue(element, 'transform') && !this.projectedValues.get(element)?.transform) || /^(?:inherit|revert|revert-layer)$/.test(authoredTransform)) ? base : null;
-    this.gesture = { element, selector: this.target, frame: this.adapter.getState().frame, tool, state, metrics: context.metrics, values: {}, guides: [], confirmation: false, rect: element.getBoundingClientRect(), parentRect: element.parentElement?.getBoundingClientRect() ?? this.scene.getBoundingClientRect(), unknownTransform, convertedTransform: null };
+    const unknownTransform = !shared && base && base !== 'none' && ((!this.origin.authoredValue(element, 'transform') && !this.projectedValues.get(element)?.transform) || /^(?:inherit|revert|revert-layer)$/.test(authoredTransform)) ? base : null;
+    this.gesture = { element, selector: this.target, frame: this.adapter.getState().frame, tool, state, metrics: context.metrics, values: {}, guides: [], confirmation: false, rect: element.getBoundingClientRect(), parentRect: element.parentElement?.getBoundingClientRect() ?? this.scene.getBoundingClientRect(), unknownTransform, convertedTransform: null, marker: new ManipulationMarker([element]), shared };
     this.geometryControls?.refresh(); return { status: 'changed' };
   }
   public isGeometryGestureActive(): boolean { return this.gesture !== null; }
   public updateGeometryGesture(delta: Point, settings: { allowUnitReplacement?: boolean; bypassSnap?: boolean } = {}): GeometryUpdateResult {
     if (this.fault) return this.faultResult();
-    if (this.adapter.preview) return this.reject(this.adapter.spatialGeometry ? sharedHandlesReason : sharedGeometryReason);
+    if (this.adapter.preview && !this.sharedHandles()) return this.reject(this.adapter.spatialGeometry ? sharedHandlesReason : sharedGeometryReason);
     const gesture = this.gesture;
     if (!gesture) return this.reject('Aucun geste géométrique en cours.');
     if (this.adapter.getState().frame !== gesture.frame || this.target !== gesture.selector || !this.scene.contains(gesture.element)) { this.cancelGeometryGesture(); return this.reject('Le contexte du geste a changé.'); }
@@ -519,6 +538,11 @@ export class HtmlDesigner<T = unknown> {
     }
     if (result.status === 'confirmation-required') return result;
     if (gesture.unknownTransform) gesture.convertedTransform = gesture.unknownTransform;
+    if (gesture.shared) {
+      const projected = this.projectSharedGeometry(gesture, result.values);
+      if (projected.status === 'changed') { gesture.confirmation = false; gesture.values = result.values; }
+      return projected;
+    }
     gesture.confirmation = false; gesture.values = result.values;
     this.render(); return { status: 'changed' };
   }
@@ -526,15 +550,47 @@ export class HtmlDesigner<T = unknown> {
     if (this.fault) return this.faultResult();
     const gesture = this.gesture;
     if (!gesture) return { status: 'unchanged' };
-    this.gesture = null; this.render();
-    if (gesture.confirmation) return this.reject('La conversion en pixels doit être confirmée avant l’enregistrement.');
-    if (this.adapter.getState().frame !== gesture.frame || this.target !== gesture.selector || !this.scene.contains(gesture.element)) return this.reject('Le contexte du geste a changé.');
-    return this.editProperties([...Object.entries(geometryValues(gesture.values)).map(([property, newValue]) => ({ property, newValue })), ...(gesture.convertedTransform ? [{ property: 'transform', newValue: gesture.convertedTransform, capture: true }] : [])], `Geometry ${gesture.tool}`);
+    // The marker leaves before the write, so no capture or journal can observe it.
+    this.gesture = null; gesture.marker.release(); this.render();
+    if (gesture.confirmation) { this.clearSharedDraft(gesture); return this.reject('La conversion en pixels doit être confirmée avant l’enregistrement.'); }
+    if (this.adapter.getState().frame !== gesture.frame || this.target !== gesture.selector || !this.scene.contains(gesture.element)) { this.clearSharedDraft(gesture); return this.reject('Le contexte du geste a changé.'); }
+    const result = this.editProperties([...Object.entries(geometryValues(gesture.values)).map(([property, newValue]) => ({ property, newValue })), ...(gesture.convertedTransform ? [{ property: 'transform', newValue: gesture.convertedTransform, capture: true }] : [])], `Geometry ${gesture.tool}`);
+    // A committed render replaces the draft; anything else must drop it explicitly.
+    if (result.status !== 'changed') this.clearSharedDraft(gesture);
+    return result;
   }
   public cancelGeometryGesture(): void {
-    if (!this.gesture) return;
-    this.gesture = null;
+    const gesture = this.gesture;
+    if (!gesture) return;
+    this.gesture = null; gesture.marker.release(); this.clearSharedDraft(gesture);
     if (!this.disposed) this.render();
+  }
+  private sharedHandles(): boolean { return Boolean(this.adapter.preview && this.adapter.spatialGeometry && this.adapter.composeGeometry); }
+  /** Live handle preview: the adapter composes the proposal; the shared owner shows it as a draft. */
+  private projectSharedGeometry(gesture: GeometryGesture, values: Readonly<Partial<GeometryState>>): GeometryUpdateResult {
+    const owner = this.adapter.preview; const compose = this.adapter.composeGeometry;
+    if (!owner || !compose) return this.reject(sharedHandlesReason);
+    const object = this.adapter.getState().objects.find(candidate => candidate.selector === gesture.selector);
+    const composition = compose(object?.id ?? `html:${gesture.selector}`, gesture.selector, geometryValues(values));
+    if (composition.status === 'rejected') return this.reject(composition.message);
+    let effect: PreparedEffect | undefined;
+    try {
+      const entries = new Map(owner.getCommittedProjection().map(entry => [entry.element, entry.declarations]));
+      entries.set(gesture.element, { ...entries.get(gesture.element), ...composition.declarations });
+      effect = owner.prepareDraft([...entries].map(([element, declarations]) => ({ element, declarations })));
+      if (effect.changed) effect.apply();
+    } catch (error) {
+      try { effect?.rollback(); } catch { this.enterFault('L’aperçu du geste n’a pas pu être restauré. Rechargez un projet cohérent.'); }
+      return this.reject(error instanceof Error ? error.message : 'Aperçu du geste indisponible.');
+    }
+    this.geometryControls?.refresh(); this.highlight();
+    return { status: 'changed' };
+  }
+  private clearSharedDraft(gesture: GeometryGesture): void {
+    const owner = this.adapter.preview;
+    if (!gesture.shared || !owner) return;
+    try { const effect = owner.prepareDraft(null); if (effect.changed) effect.apply(); }
+    catch { this.enterFault('L’aperçu temporaire du geste n’a pas pu être retiré. Rechargez un projet cohérent.'); }
   }
   public setGeometryPivot(xPercent: number, yPercent: number): MutationResult {
     if (this.fault) return this.faultResult();
@@ -662,7 +718,9 @@ export class HtmlDesigner<T = unknown> {
     if (this.fault !== null) return;
     message = message.trim() ? message : 'État du projet incertain. Rechargez un projet cohérent avant de reprendre.';
     this.fault = message; this.pendingDocumentChange = null; this.pendingProjectChange = null; this.deferredNotifications = [];
-    this.pending = null; this.pendingGeometryTarget = false; this.gesture = null;
+    const gesture = this.gesture;
+    this.pending = null; this.pendingGeometryTarget = false; gesture?.marker.release(); this.gesture = null;
+    if (gesture?.shared && this.adapter.preview) { try { const effect = this.adapter.preview.prepareDraft(null); if (effect.changed) effect.apply(); } catch { /* The fault already reports an uncertain preview. */ } }
     this.cancelConflict(); this.gradientController?.setFault(message); this.ui.hideTargets(); this.ui.setFault(message);
     this.emitter.emit('fault', { message }); this.emitter.emit('diagnostic', { message });
   }
@@ -692,7 +750,7 @@ export class HtmlDesigner<T = unknown> {
     if (this.disposed) return; this.disposed = true;
     this.gradientController?.dispose();
     this.cancelConflict(); this.conflictsUi.destroy();
-    this.gesture = null; this.geometryControls?.destroy();
+    this.cancelGeometryGesture(); sweepManipulationMarkers(this.scene); this.geometryControls?.destroy();
     this.abort.abort(); for (const unsubscribe of this.subscriptions) unsubscribe();
     if (!this.adapter.preview) this.origin.restore();
     this.highlight(); this.panel.destroy(); this.tree.destroy(); this.ui.destroy(); this.emitter.clear();

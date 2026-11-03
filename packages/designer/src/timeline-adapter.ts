@@ -37,6 +37,8 @@ export interface ReversibleEffect {
   /** Pure capture for an atomic host participant; old adapters may omit support. */
   prepare?(direction: HistoryDirection): PreparedEffect;
 }
+/** Resolved declarations of a proposed geometry state; never keys, history or a document change. */
+export type GeometryComposition = { readonly status: 'composed'; readonly declarations: Readonly<Record<string, string>> } | { readonly status: 'rejected'; readonly message: string };
 export type TimelineReason = 'frame' | 'selection' | 'execute' | 'undo' | 'redo' | 'preview' | 'cancel';
 export interface TimelineAdapter {
   readonly kind: 'simulation' | 'real';
@@ -48,6 +50,8 @@ export interface TimelineAdapter {
    * through its shared preview owner. Canvas handles still need a live gesture preview.
    */
   readonly spatialGeometry?: boolean;
+  /** HA11 live handle preview for one target, composed exactly as a committed key would render. */
+  composeGeometry?(objectId: string, selector: string, values: Readonly<Record<string, string>>): GeometryComposition;
   /** Shared writer created before Editor; committed rendering precedes every host observation. */
   readonly preview?: DomPreviewOwner;
   getState(): TimelineState;
