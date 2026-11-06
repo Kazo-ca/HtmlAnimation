@@ -102,6 +102,9 @@ sampled, fitted or rewritten locally. A refusal never yields a partial file. Exp
 change the document, context, history or preview, and they are unavailable during a
 fault, group or transaction. Editable saving remains independent.
 
+Designer-side conformance to TL-C01–TL-C18 on this reference is recorded case by case in
+`designer-conformance.md` (2026-11-06), next to Timeline's own report (Timeline PR #134).
+
 These packages are local unpublished archives, not an assumption about a registry release.
 
 The preceding HA9 record is archived in `timeline-real-matrix-r3.md`.
