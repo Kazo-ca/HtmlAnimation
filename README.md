@@ -4,6 +4,10 @@
 An HTML design workspace built as three independently packageable TypeScript libraries.
 The interface is in French. Requires Node.js 24+ and npm 11+.
 
+**Live demo:** <https://kazo-ca.github.io/HtmlAnimation/>, rebuilt and deployed by
+`.github/workflows/pages.yml` on every push to `main`. The real Timeline workshop is at
+<https://kazo-ca.github.io/HtmlAnimation/timeline-real.html>.
+
 | Package | Role | Runtime dependencies |
 | --- | --- | --- |
 | `@kazo-ca/css-properties` | Controlled CSS property editor with free-text fallback | None |
