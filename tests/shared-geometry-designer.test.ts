@@ -76,11 +76,10 @@ describe('Designer geometry fields with the shared HA11 preview', () => {
         expect(spatialFieldValues(bindings, { a: number(100 / 3), b: number(1e-7), c: number(-0), d: number(12.5), e: number(0.4) })).toEqual({ translateX: '33.333333px', rotation: '0turn', scaleY: '0', pivotX: '12.5%' });
         for (const text of ['33.333333px', '12.5%']) expect(validGeometryValue('translateX', text)).toBe(true);
     });
-    it('offers canvas handles with the shared preview, except the dimensions handle', () => {
+    it('offers canvas handles with the shared preview', () => {
         const { host, designer, propertiesContainer } = setup();
         designer.selectTarget('#gradient-peer');
         expect(typeof host.adapter.composeGeometry).toBe('function');
-        expect(designer.beginGeometryGesture('dimensions')).toMatchObject({ status: 'rejected', message: expect.stringContaining('panneau CSS') });
         expect(designer.isGeometryGestureActive()).toBe(false);
         expect(propertiesContainer.textContent).not.toContain('Les poignées géométriques ne sont pas encore disponibles avec l’aperçu partagé.');
     });

@@ -11,7 +11,8 @@ import type { MutationResult, PropertyWrite, TimelineAdapter, TimelineReason, Ti
 import { DomPreviewOwner } from '../packages/designer/src/dom-preview.js';
 import type { ElementProjection } from '../packages/designer/src/dom-preview.js';
 import artifactManifest from '../vendor/timeline/manifest.json';
-import { propertyMapping } from './css-mappings.js';
+import { isDimensionProperty, parseCssLength, propertyMapping } from './css-mappings.js';
+import type { DimensionProperty, DimensionUnit } from './css-mappings.js';
 import type { PropertyMapping } from './css-mappings.js';
 import { createConflictCapability } from './conflict-bridge.js';
 import { exportPlayback } from './playback-outputs.js';
@@ -461,6 +462,24 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         if (bases.some(base => JSON.stringify(base) !== JSON.stringify(first))) throw new Error('Les éléments de ce groupe ont des bases différentes pour cette propriété ; choisissez une cible plus précise.');
         return first;
     };
+    /**
+     * Source base in the track's own unit: the authored value when it uses that unit, the
+     * computed pixels for a px track, otherwise an explicit refusal (no unit conversion).
+     */
+    const sameDimensionBinding = (left: HtmlPropertyBinding, right: Extract<HtmlPropertyBinding, { kind: 'style' }>): boolean => left.kind === 'style' && left.cssName === right.cssName && left.unit === right.unit;
+    const dimensionBase = (selectorText: string, property: DimensionProperty, unit: DimensionUnit): TimelinePropertyValue => {
+        const reads = owner.withSource(() => stage.resolveElements({ selector: selectorText }).map(element => {
+            const authored = element instanceof HTMLElement ? element.style.getPropertyValue(property).trim() : '';
+            try { const parsed = parseCssLength(authored, unit); if (parsed.unit === unit) return parsed.value; } catch { /* Not an authored length in this unit. */ }
+            if (unit !== 'px') return undefined;
+            const read = readHtmlPropertyBase(element, { binding: { kind: 'style', cssName: property, unit: 'px' }, valueKind: 'number' });
+            return read.status === 'value' && read.value.kind === 'number' ? read.value.value : undefined;
+        }));
+        const [first] = reads;
+        if (first === undefined || reads.some(value => value === undefined)) throw new Error(`La base source de cette dimension n’est pas mesurable en « ${unit} » ; une conversion explicite est nécessaire.`);
+        if (reads.some(value => value !== first)) throw new Error('Les éléments de ce groupe ont des bases différentes pour cette dimension ; choisissez une cible plus précise.');
+        return { kind: 'number', value: first };
+    };
     /** Composes proposed geometry exactly as committed keys would render, without any write. */
     const composeSpatialPreview = (objectId: string, target: string, proposed: Readonly<Record<string, string>>): Readonly<Record<string, string>> => {
         const elements = stage.resolveElements({ selector: target });
@@ -477,7 +496,18 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
         const resolved: Record<string, IHtmlResolvedBinding> = {};
         for (const [property, binding] of Object.entries(bound)) {
             const value = sampled[property];
-            if (binding.kind === 'spatial' && value) { composed[property] = value; resolved[property] = { binding, valueKind: value.kind }; }
+            if ((binding.kind === 'spatial' || binding.kind === 'style' && isDimensionProperty(binding.cssName)) && value) { composed[property] = value; resolved[property] = { binding, valueKind: value.kind }; }
+        }
+        if (layer && lockedPath(editor.document.layers, layer.id) !== false) throw new Error('Ce calque ou son dossier est verrouillé dans Timeline.');
+        for (const [property, text] of Object.entries(proposed)) {
+            if (!isDimensionProperty(property)) continue;
+            const prior = bound[property];
+            const parsed = parseCssLength(text, prior?.kind === 'style' ? prior.unit : undefined);
+            const binding = { kind: 'style', cssName: property, unit: parsed.unit } as const;
+            if (prior && !sameDimensionBinding(prior, binding)) throw new Error('L’unité de cette dimension est déjà fixée par sa piste ; une conversion explicite est nécessaire et n’est jamais déduite.');
+            // The preview refuses exactly what the commit would: a new track needs a measurable base.
+            if (!prior) dimensionBase(target, property, parsed.unit);
+            composed[property] = { kind: 'number', value: parsed.value }; resolved[property] = { binding, valueKind: 'number' };
         }
         for (const [component, text] of Object.entries(proposed)) {
             if (!isSpatialComponent(component)) continue;
@@ -524,8 +554,24 @@ export function createRealGradientHost(editorContainer: HTMLElement, scene: HTML
             bindings[target.id] = { ...current.bindings?.[target.id], ...bindings[target.id], [parsed.property]: binding };
             return { kind: 'set', layerId: target.id, property: parsed.property, frame: write.frame, value: parsed.value, initialValue };
         };
+        /** Width/height: one style track per dimension, its unit fixed by the first key. */
+        const dimensionOperation = (write: PropertyWrite, property: DimensionProperty): PropertyTimelineOperation => {
+            const target = resolveTarget(write, created, taken);
+            if (target.existing && lockedPath(editor.document.layers, target.id) !== false) throw new Error('Ce calque ou son dossier est verrouillé dans Timeline.');
+            const prior = current.bindings?.[target.id]?.[property];
+            const parsed = parseCssLength(write.value, prior?.kind === 'style' ? prior.unit : undefined);
+            claim(target.id, property);
+            const binding = { kind: 'style', cssName: property, unit: parsed.unit } as const;
+            if (prior && !sameDimensionBinding(prior, binding)) throw new Error(prior.kind === 'style' && prior.cssName === property ? 'L’unité de cette dimension est déjà fixée par sa piste ; une conversion explicite est nécessaire et n’est jamais déduite.' : 'Cette propriété est déjà liée à une autre déclaration ; sa liaison n’est pas remplacée implicitement.');
+            const sibling = Object.entries(current.bindings?.[target.id] ?? {}).find(([name, candidate]) => name !== property && candidate.kind === 'style' && candidate.cssName === property);
+            if (sibling) throw new Error(`La déclaration ${property} est déjà animée sur cet objet par « ${sibling[0]} » ; une seconde liaison n’est pas créée.`);
+            const initialValue = findLayer(target.id)?.propertyTimelines?.[property]?.initialValue ?? dimensionBase(write.selector, property, parsed.unit);
+            bindings[target.id] = { ...current.bindings?.[target.id], ...bindings[target.id], [property]: binding };
+            return { kind: 'set', layerId: target.id, property, frame: write.frame, value: { kind: 'number', value: parsed.value }, initialValue };
+        };
         const properties = writes.map((write): PropertyTimelineOperation => {
             if (isSpatialComponent(write.property)) return spatialOperation(write, write.property);
+            if (isDimensionProperty(write.property)) return dimensionOperation(write, write.property);
             const mapping = propertyMapping(write.property);
             if (!mapping) throw new Error(`La propriété « ${write.property} » n’a pas encore de correspondance Timeline explicite.`);
             const target = resolveTarget(write, created, taken);
