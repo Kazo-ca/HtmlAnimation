@@ -88,6 +88,25 @@ const mappings: ReadonlyMap<string, PropertyMapping> = new Map<string, PropertyM
     ...Object.entries(logicalBorderStyles).map(([cssName, property]): [string, PropertyMapping] => [cssName, { property, binding: { kind: 'style', cssName }, valueKind: 'text', parse: borderStyle }]),
 ]);
 
+/** Box dimensions keep the unit of their track; nothing is converted between units. */
+export const dimensionProperties = ['width', 'height'] as const;
+export type DimensionProperty = typeof dimensionProperties[number];
+export const dimensionUnits = ['px', '%', 'em', 'rem', 'vw', 'vh'] as const;
+export type DimensionUnit = typeof dimensionUnits[number];
+export function isDimensionProperty(property: string): property is DimensionProperty {
+    return dimensionProperties.some(candidate => candidate === property);
+}
+/** A non-negative length; a unitless zero takes the track unit (px for a new track). */
+export function parseCssLength(text: string, trackUnit?: string): { readonly value: number; readonly unit: DimensionUnit } {
+    const message = 'Dimension non valide : utilisez une longueur positive en px, %, em, rem, vw ou vh.';
+    const match = /^(\+?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?)([a-z%]*)$/i.exec(text.trim());
+    const value = match?.[1] === undefined ? Number.NaN : Number(match[1]);
+    if (!match || !Number.isFinite(value) || value < 0) throw new Error(message);
+    const written = (match[2] ?? '').toLowerCase() || (value === 0 ? trackUnit ?? 'px' : '');
+    const unit = dimensionUnits.find(candidate => candidate === written);
+    if (!unit) throw new Error(message);
+    return { value, unit };
+}
 /** Display text of a typed value for announced writes; the typed value stays authoritative. */
 export function formatCssText(value: TimelinePropertyValue): string {
     if (value.kind !== 'color') return String(value.value);

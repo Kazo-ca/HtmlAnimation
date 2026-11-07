@@ -74,10 +74,10 @@ describe('canvas handles with the shared HA11 preview', () => {
         expect(designer.commitGeometryGesture().status).toBe('changed');
         expect(Object.keys(layer(host)?.propertyTimelines ?? {})).toEqual(['spatialRotation']);
     });
-    it('refuses the dimensions handle explicitly and leaves no marker', () => {
+    it('offers the dimensions handle too, and leaves no marker once cancelled', () => {
         const { designer, scene } = setup();
-        expect(designer.beginGeometryGesture('dimensions')).toMatchObject({ status: 'rejected', message: expect.stringContaining('panneau') });
-        expect(markers(scene)).toEqual([]);
+        expect(designer.beginGeometryGesture('dimensions')).toEqual({ status: 'changed' });
+        designer.cancelGeometryGesture(); expect(markers(scene)).toEqual([]);
     });
     it('removes every marker and draft when the Designer is disposed mid-gesture', () => {
         const { designer, scene, peer, dispose } = setup();
