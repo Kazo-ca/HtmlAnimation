@@ -52,7 +52,6 @@ const commonProperties = ['opacity', 'width', 'height', 'position', 'left', 'top
 const labels: Readonly<Record<string, string>> = { opacity: 'Opacité', width: 'Largeur', height: 'Hauteur', 'margin-top': 'Marge supérieure', 'background-color': 'Couleur de fond', color: 'Couleur', transform: 'Transformation', translateX: 'Déplacement X', translateY: 'Déplacement Y', rotation: 'Rotation', rotate: 'Rotation CSS', scaleX: 'Échelle X', scaleY: 'Échelle Y', pivotX: 'Pivot X', pivotY: 'Pivot Y' };
 const sharedGeometryReason = 'Les poignées géométriques ne sont pas encore disponibles avec l’aperçu partagé.';
 const sharedHandlesReason = 'Les poignées géométriques ne sont pas encore disponibles avec l’aperçu partagé ; utilisez les champs de géométrie.';
-const sharedDimensionsReason = 'Avec l’aperçu partagé, les dimensions se modifient dans le panneau CSS ; leur poignée n’est pas prise en charge.';
 
 export class HtmlDesigner<T = unknown> {
   private readonly scene: HTMLElement;
@@ -480,7 +479,6 @@ export class HtmlDesigner<T = unknown> {
     if (this.fault) return this.faultResult();
     const shared = Boolean(this.adapter.preview);
     if (shared && !this.sharedHandles()) return this.reject(this.adapter.spatialGeometry ? sharedHandlesReason : sharedGeometryReason);
-    if (shared && tool === 'dimensions') return this.reject(sharedDimensionsReason);
     this.gradientController?.cancel(false);
     if (this.disposed || this.mode !== 'select') return this.reject('Les outils géométriques sont disponibles en mode Sélection.');
     if (this.gesture) return this.reject('Un geste est déjà en cours.');
@@ -551,7 +549,8 @@ export class HtmlDesigner<T = unknown> {
     const gesture = this.gesture;
     if (!gesture) return { status: 'unchanged' };
     // The marker leaves before the write, so no capture or journal can observe it.
-    this.gesture = null; gesture.marker.release(); this.render();
+    // The draft leaves too: values are compared against, and written over, the committed state.
+    this.gesture = null; gesture.marker.release(); this.clearSharedDraft(gesture); this.render();
     if (gesture.confirmation) { this.clearSharedDraft(gesture); return this.reject('La conversion en pixels doit être confirmée avant l’enregistrement.'); }
     if (this.adapter.getState().frame !== gesture.frame || this.target !== gesture.selector || !this.scene.contains(gesture.element)) { this.clearSharedDraft(gesture); return this.reject('Le contexte du geste a changé.'); }
     const result = this.editProperties([...Object.entries(geometryValues(gesture.values)).map(([property, newValue]) => ({ property, newValue })), ...(gesture.convertedTransform ? [{ property: 'transform', newValue: gesture.convertedTransform, capture: true }] : [])], `Geometry ${gesture.tool}`);

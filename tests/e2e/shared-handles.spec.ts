@@ -32,6 +32,25 @@ test('genuine move handle previews live, records one spatial key and removes its
   await expect(page.getByRole('region', { name: 'Modifications du document original' })).toContainText('Document original inchangé');
 });
 
+test('genuine dimensions handle resizes live and records width and height keys in one undo', async ({ page }) => {
+  await page.goto('/timeline-real.html'); await expect(page.locator('#real-events')).toContainText('Moteur réel prêt');
+  const box = page.locator('#real-scene #gradient-box'); const classes = await box.getAttribute('class'); const before = await project(page); const size = await box.boundingBox();
+  await page.getByRole('group', { name: 'Outils géométriques' }).getByRole('button', { name: 'Dimensions', exact: true }).click();
+  const handle = page.locator('[data-geometry-handle="dimensions"]'); await expect(handle).toBeVisible();
+  const rect = await handle.boundingBox(); if (!rect || !size) throw new Error('Missing dimensions handle');
+  const start = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  await page.mouse.move(start.x, start.y); await page.mouse.down(); await page.mouse.move(start.x + 33, start.y + 17, { steps: 4 });
+  expect(await markerCount(page)).toBe(1); expect(await project(page)).toEqual(before);
+  await expect.poll(async () => (await box.boundingBox())?.width ?? 0).toBeGreaterThan(size.width);
+  await page.mouse.up();
+  const saved = await project(page); const layer = saved.timeline.layers.find(candidate => candidate.id === 'gradientObject');
+  if (!layer || layer.type !== 'layer') throw new Error('Missing gradient layer');
+  expect(Object.keys(layer.propertyTimelines ?? {})).toEqual(expect.arrayContaining(['width', 'height']));
+  expect(await markerCount(page)).toBe(0); expect(await box.getAttribute('class')).toBe(classes);
+  await page.locator('#real-undo').click(); expect(await project(page)).toEqual(before);
+  await expect.poll(async () => Math.round((await box.boundingBox())?.width ?? 0)).toBe(Math.round(size.width));
+});
+
 test('genuine handle gesture cancelled with Escape leaves no key, draft or class', async ({ page }) => {
   await page.goto('/timeline-real.html'); await expect(page.locator('#real-events')).toContainText('Moteur réel prêt');
   const box = page.locator('#real-scene #gradient-box'); const classes = await box.getAttribute('class'); const style = await box.getAttribute('style'); const before = await project(page);
